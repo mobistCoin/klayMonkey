@@ -66,16 +66,25 @@ router.get('/transfers', function(req, res, last_function) {
   need_build(req, res);
 });
 
-router.get('/transferFT', function(req, res, last_function) {
+/**
+ * FT 전송용  API
+ */
+router.get('/transferFT/:ft', function(req, res, last_function) {
   console.log(res.locals.config)
   need_build(req, res);
 });
 
-router.get('/transferFTWithFee', function(req, res, last_function) {
+/**
+ * 수수료 대납용 FT 전송 API
+ */
+router.get('/transferFTWithFee/:ft', function(req, res, last_function) {
   console.log(res.locals.config)
   need_build(req, res);
 });
 
+/**
+ * FT 전송 기록 확인용 API
+ */
 router.get('/transferFT/:ft', function(req, res, last_function) {
   console.log(res.locals.config)
   need_build(req, res);
