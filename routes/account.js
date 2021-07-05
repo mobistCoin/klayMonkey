@@ -3,6 +3,9 @@ const router = express.Router();
 const debug = require('debug')('account')
 const mysql = require('mysql2/promise')
 const klaytn = require('libkct')
+const Caver = require('caver-js')
+// const caver = new Caver('http://52.195.6.63:8551/')
+const caver = new Caver('https://api.baobab.klaytn.net:8651/')
 
 /**
  * 개발되지 않은 페이지의 확인용 함수
@@ -11,6 +14,47 @@ const klaytn = require('libkct')
  */
 function need_build(req, res) {
   res.send('Need build function')
+}
+
+async function getAccounts(connection) {
+  /**
+   * svc_id에 매칭되는 id와 password를 가져옴.
+   * @type {string}
+   */
+  sql = 'SELECT * FROM account'
+
+  /**
+   * mysql2에서는 query 데이터를 await로 가져와서 처리함.
+   * @type {*}
+   */
+  let value = await connection.query(sql)
+  console.log(value)
+
+  /**
+   * database 값을 반환.
+   */
+  return value
+}
+
+async function getBalances(connection, address) {
+  /**
+   * svc_id에 매칭되는 id와 password를 가져옴.
+   * @type {string}
+   */
+  sql = 'SELECT * FROM balance where address="' + address + '"'
+
+  debug(sql)
+
+  /**
+   * mysql2에서는 query 데이터를 await로 가져와서 처리함.
+   * @type {*}
+   */
+  let value = await connection.query(sql)
+
+  /**
+   * database 값을 반환.
+   */
+  return value
 }
 
 router.use((req, res, next) => {
@@ -38,17 +82,19 @@ router.use((req, res, next) => {
  * account 정보를 확인하고 전체 명령을 제어할 수 있는 PAGE
  */
 router.get('/', function(req, res, next) {
-
+  console.log(typeof res)
   need_build(req, res);
 });
 
 /**
  * account 생성용 API
  */
-router.get('/create', function(req, res, last_function) {
-
-  console.log(res.locals.config)
-  need_build(req, res);
+router.get('/create', async function(req, res, last_function) {
+  let value = caver.klay.accounts.create()
+  let connection = res.locals.connection
+  sql = `Insert into account (address, accountkey, privatekey) values (?, ?, ?)`
+  connection.query(sql, [value.address, value.accountKey._key, value.privateKey])
+  res.send(value)
 });
 
 /**
@@ -57,6 +103,15 @@ router.get('/create', function(req, res, last_function) {
 router.get('/detail', function(req, res, last_function) {
   console.log(res.locals.config)
   need_build(req, res);
+});
+
+/**
+ * account List 내용 API
+ * @return
+ */
+router.get('/lists', async function(req, res, last_function) {
+  let value = await getAccounts(res.locals.connection)
+  res.send(value[0])
 });
 
 /**
@@ -70,7 +125,7 @@ router.get('/update', function(req, res, last_function) {
 /**
  * account의 klay 전송용 API
  */
-router.get('/transfer', function(req, res, last_function) {
+router.get('/:aoa/transfer', function(req, res, last_function) {
   console.log(res.locals.config)
   need_build(req, res);
 });
@@ -78,7 +133,7 @@ router.get('/transfer', function(req, res, last_function) {
 /**
  * account의 수수료 대납용 klay 전송용 API
  */
-router.get('/transferWithFee', function(req, res, last_function) {
+router.get('/:aoa/transferWithFee', function(req, res, last_function) {
   console.log(res.locals.config)
   need_build(req, res);
 });
@@ -86,31 +141,7 @@ router.get('/transferWithFee', function(req, res, last_function) {
 /**
  * account의 klay 전송 기록용 API
  */
-router.get('/transfers', function(req, res, last_function) {
-  console.log(res.locals.config)
-  need_build(req, res);
-});
-
-/**
- * FT 전송용  API
- */
-router.get('/transferFT/:ft', function(req, res, last_function) {
-  console.log(res.locals.config)
-  need_build(req, res);
-});
-
-/**
- * 수수료 대납용 FT 전송 API
- */
-router.get('/transferFTWithFee/:ft', function(req, res, last_function) {
-  console.log(res.locals.config)
-  need_build(req, res);
-});
-
-/**
- * FT 전송 기록 확인용 API
- */
-router.get('/transferFT/:ft', function(req, res, last_function) {
+router.get('/:aoa/transfers', function(req, res, last_function) {
   console.log(res.locals.config)
   need_build(req, res);
 });
@@ -118,7 +149,32 @@ router.get('/transferFT/:ft', function(req, res, last_function) {
 /**
  * account의 balance
  */
-router.get('/balance', function(req, res, last_function) {
+router.get('/:aoa/balance', function(req, res, last_function) {
+  console.log(res.locals.config)
+  need_build(req, res);
+});
+
+
+/**
+ * FT 전송용  API
+ */
+router.get('/:aoa/transferFT/:ft', function(req, res, last_function) {
+  console.log(res.locals.config)
+  need_build(req, res);
+});
+
+/**
+ * 수수료 대납용 FT 전송 API
+ */
+router.get('/:aoa/transferFTWithFee/:ft', function(req, res, last_function) {
+  console.log(res.locals.config)
+  need_build(req, res);
+});
+
+/**
+ * FT 전송 기록 확인용 API
+ */
+router.get('/:aoa/transferFT/:ft', function(req, res, last_function) {
   console.log(res.locals.config)
   need_build(req, res);
 });
@@ -126,9 +182,9 @@ router.get('/balance', function(req, res, last_function) {
 /**
  * FT 잔액 확인용 API
  */
-router.get('/balanceFT/:ft', function(req, res, last_function) {
-  console.log(res.locals.config)
-  need_build(req, res);
+router.post('/:aoa/balanceFT/:ft', async function(req, res, last_function) {
+  let values = await getBalances(res.locals.connection, req.body.address)
+  res.send(values[0][0])
 });
 
 module.exports = router;

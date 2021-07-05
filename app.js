@@ -40,6 +40,13 @@ const jsonData = JSON.parse(fs.readFileSync('./platform.json', 'utf8'))
  */
 const {database, dbTable, dbUser, dbPass, svcID} = jsonData.database;
 
+const connection1 = mysql.createConnection({
+    host: 'localhost',
+    user: dbUser,
+    password: dbPass,
+    database: database
+});
+
 /**
  * DB 연결 및 query값 확인.
  * mysql2 사용으로 await 사용
@@ -48,13 +55,7 @@ const {database, dbTable, dbUser, dbPass, svcID} = jsonData.database;
  * @returns {Promise<*>}
  */
 async function getSVC(svc_id) {
-    const connection1 = await mysql.createConnection({
-        host: 'localhost',
-        user: dbUser,
-        password: dbPass,
-        database: database
-    });
-
+    let connection = await connection1
     /**
      * svc_id에 매칭되는 id와 password를 가져옴.
      * @type {string}
@@ -65,7 +66,7 @@ async function getSVC(svc_id) {
      * mysql2에서는 query 데이터를 await로 가져와서 처리함.
      * @type {*}
      */
-    let value = await connection1.query(sql)
+    let value = await connection.query(sql)
 
     /**
      * database 값을 반환.
@@ -79,6 +80,7 @@ app.use( async function (req, res, next) {
      * @type {*}
      */
     const dbValue = await getSVC(jsonData.database.svcID)
+    res.locals.connection = await connection1
 
     /**
      * JSON 파일의 내용을 읽고 내용을 router에 전송
