@@ -16,6 +16,10 @@ const app = express();
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
+/**
+ * log 내용을 저장할 파일을 지정
+ * @type {WriteStream}
+ */
 logstream = fs.createWriteStream('app.log', {'flags': 'w'})
 
 app.use(logger({'stream': logstream, 'format': 'dev'}));
@@ -31,9 +35,18 @@ app.use(express.static(path.join(__dirname, 'public')));
  */
 const jsonData = JSON.parse(fs.readFileSync('./platform.json', 'utf8'))
 
-/* Database connection setting */
+/**
+ * database 연결 설정값을 json 파일에서 읽어오기.
+ */
 const {database, dbTable, dbUser, dbPass, svcID} = jsonData.database;
 
+/**
+ * DB 연결 및 query값 확인.
+ * mysql2 사용으로 await 사용
+ * svc table에서 svc_id를 바탕으로 id, pass 가져옴.
+ * @param svc_id
+ * @returns {Promise<*>}
+ */
 async function getSVC(svc_id) {
     const connection1 = await mysql.createConnection({
         host: 'localhost',
@@ -42,24 +55,43 @@ async function getSVC(svc_id) {
         database: database
     });
 
+    /**
+     * svc_id에 매칭되는 id와 password를 가져옴.
+     * @type {string}
+     */
     sql = 'SELECT * FROM svc where pid=' + svc_id
 
+    /**
+     * mysql2에서는 query 데이터를 await로 가져와서 처리함.
+     * @type {*}
+     */
     let value = await connection1.query(sql)
 
+    /**
+     * database 값을 반환.
+     */
     return value
 }
 
 app.use( async function (req, res, next) {
+    /**
+     * database에서 data를 가져온다.
+     * @type {*}
+     */
     const dbValue = await getSVC(jsonData.database.svcID)
-
-    console.log(dbValue[0][0].accesskey)
 
     /**
      * JSON 파일의 내용을 읽고 내용을 router에 전송
      * @type {any}
      */
     res.locals.config = jsonData
+    /**
+     * 접속용 id 값을 database 값으로 설정
+     */
     res.locals.id = dbValue[0][0].accesskey
+    /**
+     * 접속용 password를 database 값으로 설정
+     */
     res.locals.password = dbValue[0][0].secretaccesskey
 
     next();
