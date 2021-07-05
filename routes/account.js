@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const debug = require('debug')('account')
+const mysql = require('mysql2/promise')
+const klaytn = require('libkct')
 
 /**
  * 개발되지 않은 페이지의 확인용 함수
@@ -10,18 +13,35 @@ function need_build(req, res) {
   res.send('Need build function')
 }
 
+router.use((req, res, next) => {
+  // DataBase에서 로그인을 위한 정보를 획득하여 값을 만들도록 한다.
+  // 로그인하는 서비스 플랫폼의 PID를 받아서 로그인용 ID/PASS를 설정하도록 한다.
+
+  const auth = { login: res.locals.id, password: res.locals.password };
+  const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
+  const [login, password] = new Buffer(b64auth, 'base64').toString().split(':');
+
+  if (login && password && login === auth.login && password === auth.password) {
+    return next();
+  }
+
+  res.set('WWW-Authenticate', 'Basic realm="401"');
+  res.status(401).send('Authentication required.');
+});
+
 /**
  * account 정보를 확인하고 전체 명령을 제어할 수 있는 PAGE
  */
 router.get('/', function(req, res, next) {
-  console.log(res.locals.config)
-  need_build('respond with a resource');
+
+  need_build(req, res);
 });
 
 /**
  * account 생성용 API
  */
 router.get('/create', function(req, res, last_function) {
+
   console.log(res.locals.config)
   need_build(req, res);
 });

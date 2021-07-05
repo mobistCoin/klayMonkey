@@ -1,13 +1,15 @@
-const createError = require('http-errors');
-const express = require('express');
-const path = require('path');
-const cookieParser = require('cookie-parser');
-const logger = require('morgan');
+const createError = require('http-errors')
+const express = require('express')
+const path = require('path')
+const cookieParser = require('cookie-parser')
+const logger = require('morgan')
 const fs = require('fs')
+const mysql = require('mysql2/promise')
+const debug = require('debug')('app')
 
-const indexRouter = require('./routes/index');
-const usersRouter = require('./routes/account');
-const contractRouter = require('./routes/contract');
+const indexRouter = require('./routes/index')
+const usersRouter = require('./routes/account')
+const contractRouter = require('./routes/contract')
 const app = express();
 
 // view engine setup
@@ -24,17 +26,41 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 /**
- * 설정 파일 내용을 jsonData로 저장.
- * @type {string}
+ * 설정 파일의 내용을 json Data로 변환.
+ * @type {any}
  */
-const jsonData = JSON.parse(fs.readFileSync('./platform.json', 'utf8'));
+const jsonData = JSON.parse(fs.readFileSync('./platform.json', 'utf8'))
 
-app.use(function (req, res, next) {
+/* Database connection setting */
+const {database, dbTable, dbUser, dbPass, svcID} = jsonData.database;
+
+async function getSVC(svc_id) {
+    const connection1 = await mysql.createConnection({
+        host: 'localhost',
+        user: dbUser,
+        password: dbPass,
+        database: database
+    });
+
+    sql = 'SELECT * FROM svc where pid=' + svc_id
+
+    let value = await connection1.query(sql)
+
+    return value
+}
+
+app.use( async function (req, res, next) {
+    const dbValue = await getSVC(jsonData.database.svcID)
+
+    console.log(dbValue[0][0].accesskey)
+
     /**
      * JSON 파일의 내용을 읽고 내용을 router에 전송
      * @type {any}
      */
     res.locals.config = jsonData
+    res.locals.id = dbValue[0][0].accesskey
+    res.locals.password = dbValue[0][0].secretaccesskey
 
     next();
 })
