@@ -157,9 +157,40 @@ router.get('/:aoa/transfer', function (req, res, last_function) {
 /**
  * account의 수수료 대납용 klay 전송용 API
  */
-router.get('/:aoa/transferWithFee', function (req, res, last_function) {
-    console.log(res.locals.config)
-    need_build(req, res);
+router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
+    let sender = req.params.aoa
+    let receiver = req.body.receiver
+    let amount = req.body.amount
+    let feePayer = res.locals.config.klaytn.feePayer
+    let feePayerKey = res.locals.config.klaytn.feePayerKey
+
+    let privateKey = await getPrivateKeyOf(res.locals.connection, sender)
+
+    const account = caver.klay.accounts.createWithAccountKey(sender, privateKey)
+    caver.klay.accounts.wallet.add(account)
+
+    const vt = {
+        type: 'FEE_DELEGATED_VALUE_TRANSFER',
+        from: account.address,
+        to: receiver,
+        value: amount,
+        gas: 50000,
+    }
+    const { rawTransaction } = await caver.klay.accounts.signTransaction(vt)
+    debug(rawTransaction)
+    debug(feePayer)
+    debug(feePayerKey)
+
+    const feePayerId = caver.klay.accounts.createWithAccountKey(feePayer, feePayerKey)
+    caver.klay.accounts.wallet.add(feePayerId)
+
+    const signed = await caver.klay.accounts.feePayerSignTransaction(rawTransaction, feePayerId.address)
+    console.log(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }), `Signed TX : ${JSON.stringify(signed)}\n`)
+
+    const transactionReceipt = await caver.klay.sendSignedTransaction(signed)
+    console.log(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }), `Daemon RESPONSE: ${JSON.stringify(transactionReceipt)}\n`)
+
+    res.send(transactionReceipt)
 });
 
 /**
@@ -202,7 +233,7 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
 /**
  * 수수료 대납용 FT 전송 API
  */
-router.get('/:aoa/transferFTWithFee/:ft', function (req, res, last_function) {
+router.post('/:aoa/transferFTWithFee/:ft', async function (req, res, last_function) {
     console.log(res.locals.config)
     need_build(req, res);
 });
