@@ -55,6 +55,29 @@ async function getPrivateKeyOf(connection, address) {
     return value[0][0].privatekey
 }
 
+function transferByteInput(address, amount) {
+    /**
+     * transfer 함수의 bytecode
+     * @type {string}
+     */
+    const funcName = "0xa9059cbb"
+    /**
+     * Token 전송 대상이 되는 지갑 주소
+     * @type {string} 64 byte 길이의 문자열
+     */
+    let toAddr = address.substr(2).padStart(64, '0')
+    /**
+     * 전송되는 token 수량을 지정
+     * @type {string} 64 byte 길이의 문자열
+     */
+    let toAmount = amount.padStart(64, '0')
+
+    /**
+     * 만들어진 string 들을 전부 합하여 결과값으로 반환
+     */
+    return funcName + toAddr + toAmount
+}
+
 async function setAccountToInstance(instance, account) {
     instance.klay.accounts.wallet.add(account)
     return instance
@@ -234,8 +257,45 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
  * 수수료 대납용 FT 전송 API
  */
 router.post('/:aoa/transferFTWithFee/:ft', async function (req, res, last_function) {
-    console.log(res.locals.config)
-    need_build(req, res);
+    let sender = req.params.aoa
+    let receiver = req.body.receiver
+    let amount = req.body.amount
+    let feePayer = res.locals.config.klaytn.feePayer
+    let feePayerKey = res.locals.config.klaytn.feePayerKey
+    let contract = res.locals.config.klaytn.contract
+
+    let privateKey = await getPrivateKeyOf(res.locals.connection, sender)
+
+    const account = caver.klay.accounts.createWithAccountKey(sender, privateKey)
+    caver.klay.accounts.wallet.add(account)
+
+    let functionABI = transferByteInput(receiver, Number(amount).toString(16))
+    debug(functionABI)
+
+    const { rawTransaction: senderRawTransaction } = await caver.klay.accounts.signTransaction(
+        {
+            type: 'FEE_DELEGATED_SMART_CONTRACT_EXECUTION',
+            from: account.address,
+            to: contract,
+            gas: '300000',
+            value: caver.utils.toPeb('0', 'KLAY'),
+            data: functionABI,
+        },
+        privateKey
+    )
+
+    debug(senderRawTransaction)
+    debug(feePayer)
+    debug(feePayerKey)
+
+    const feePayerId = caver.klay.accounts.wallet.add(feePayerKey)
+
+    const receipt = await caver.klay.sendTransaction({
+        senderRawTransaction: senderRawTransaction,
+        feePayer: feePayerId.address,
+    })
+
+    res.send(receipt)
 });
 
 /**
