@@ -16,7 +16,7 @@
     "pug": "2.0.0-beta11"
   },
   "devDependencies": {
-    "libkct": "^0.5.8",
+    "libkct": "^0.5.9",
     "mysql2": "^2.2.5"
   }
 }

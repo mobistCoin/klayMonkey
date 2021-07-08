@@ -7,6 +7,8 @@ const Caver = require('caver-js')
 // const caver = new Caver('http://52.195.6.63:8551/')
 const caver = new Caver('https://api.baobab.klaytn.net:8651/')
 
+const kcts = require('../libs/kcts')
+
 /**
  * 개발되지 않은 페이지의 확인용 함수
  * @param req
@@ -16,109 +18,9 @@ function need_build(req, res) {
     res.send('Need build function')
 }
 
-/**
- * Database 계좌 정보를 읽어와서 전체 내용을 json으로 반환
- * @param connection
- * @returns {Promise<*>}
- */
-async function getAccounts(connection) {
-    /**
-     * svc_id에 매칭되는 id와 password를 가져옴.
-     * @type {string}
-     */
-    sql = 'SELECT * FROM account'
-
-    /**
-     * mysql2에서는 query 데이터를 await로 가져와서 처리함.
-     * @type {*}
-     */
-    let value = await connection.query(sql)
-    console.log(value)
-
-    /**
-     * database 값을 반환.
-     */
-    return value
-}
-
-/**
- * Database 에서 Private Key 읽어오기
- * @param connection Database 연결
- * @param address Private key 를 읽가져오려는 지갑 주소
- * @returns {Promise<*>} Private Key
- */
-async function getPrivateKeyOf(connection, address) {
-    /**
-     * svc_id에 매칭되는 id와 password를 가져옴.
-     * @type {string}
-     */
-    let sql = 'SELECT * FROM account where address="' + address + '"'
-
-    /**
-     * mysql2에서는 query 데이터를 await로 가져와서 처리함.
-     * @type {*}
-     */
-    let value = await connection.query(sql)
-
-    /**
-     * database 값을 반환.
-     */
-    return value[0][0].privatekey
-}
-
-/**
- * 인코딩된 Smart Contract Data 생성용 함수
- * @param address 토큰 전송 대상 주소
- * @param amount 토큰 전송 수량
- * @returns {string} 인코딩된 데이터
- */
-function transferByteInput(address, amount) {
-    /**
-     * transfer 함수의 bytecode
-     * @type {string}
-     */
-    const funcName = "0xa9059cbb"
-    /**
-     * Token 전송 대상이 되는 지갑 주소
-     * @type {string} 64 byte 길이의 문자열
-     */
-    let toAddr = address.substr(2).padStart(64, '0')
-    /**
-     * 전송되는 token 수량을 지정
-     * @type {string} 64 byte 길이의 문자열
-     */
-    let toAmount = amount.padStart(64, '0')
-
-    /**
-     * 만들어진 string 들을 전부 합하여 결과값으로 반환
-     */
-    return funcName + toAddr + toAmount
-}
-
 async function setAccountToInstance(instance, account) {
     instance.klay.accounts.wallet.add(account)
     return instance
-}
-
-async function getBalancesOfFT(connection, address, ft) {
-    /**
-     * svc_id에 매칭되는 id와 password를 가져옴.
-     * @type {string}
-     */
-    sql = 'SELECT * FROM balance where address="' + address + '" and ft ="' + ft + '"'
-
-    debug(sql)
-
-    /**
-     * mysql2에서는 query 데이터를 await로 가져와서 처리함.
-     * @type {*}
-     */
-    let value = await connection.query(sql)
-
-    /**
-     * database 값을 반환.
-     */
-    return value
 }
 
 router.use((req, res, next) => {
@@ -162,21 +64,55 @@ router.get('/create', async function (req, res, last_function) {
 });
 
 /**
- * account의 상세 내용 API
- */
-router.get('/detail', function (req, res, last_function) {
-    console.log(res.locals.config)
-    need_build(req, res);
-});
-
-/**
  * account List 내용 API
  * @return
  */
 router.get('/lists', async function (req, res, last_function) {
-    let value = await getAccounts(res.locals.connection)
+    let value = await kcts.getAccounts(res.locals.connection)
     res.send(value[0])
 });
+
+/**
+ * 외부 계정을 등록하기 위한  API 함수
+ * TODO: 지갑 주소의 validation, 중복 주소의 검사
+ */
+router.post('/register', function(req, res, last_function) {
+    let connection = res.locals.connection
+    /**
+     * account 를 등록하기 위한 database sql 문구
+     * @param address 지갑의 주소
+     * @param accountkey 지갑의 공개키
+     * @param privatekey 지갑의 비밀키
+     * @type {string}
+     */
+    sql = `Insert into account (address, accountkey, privatekey) values (?, ?, ?)`
+
+    // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
+    connection.query(sql, [req.body.address, req.body.accountkey, req.body.privatekey])
+    // 기록한 내용을 API 값으로 반환
+    res.send('{"status": True, "Address": ' + req.body.address + '}')
+})
+
+/**
+ * 외부 계정을 등록해제하기 위한  API 함수
+ * TODO: 지갑 주소의 validation
+ */
+router.post('/unregister', function(req, res, last_function) {
+    let connection = res.locals.connection
+    /**
+     * account 를 등록하기 위한 database sql 문구
+     * @param address 지갑의 주소
+     * @param accountkey 지갑의 공개키
+     * @param privatekey 지갑의 비밀키
+     * @type {string}
+     */
+    sql = `DELETE FROM account WHERE address = ? AND privatekey = ?`
+
+    // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
+    connection.query(sql, [req.body.address, req.body.privatekey])
+    // 기록한 내용을 API 값으로 반환
+    res.send('{"status": True, "Address": ' + req.body.address + '}')
+})
 
 /**
  * account의 정보 update용 API
@@ -205,11 +141,11 @@ router.get('/:aoa/transfers', function (req, res, last_function) {
 /**
  * account의 balance
  */
-router.get('/:aoa/balance', function (req, res, last_function) {
-    console.log(res.locals.config)
-    need_build(req, res);
+router.get('/:aoa/balance', async function (req, res, last_function) {
+    let balance = await caver.rpc.klay.getBalance(req.params.aoa)
+    let result = parseInt(balance)
+    res.send('{"balance": ' + result + '}')
 });
-
 
 /**
  * FT 전송용  API (with DB)
@@ -220,7 +156,7 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
     let amount = req.body.amount
     let contract = req.params.ft
 
-    let privateKey = await getPrivateKeyOf(res.locals.connection, sender)
+    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
 
     let kip7Instance = new caver.klay.KIP7(contract)
     const account = caver.klay.accounts.createWithAccountKey(sender, privateKey)
@@ -290,7 +226,7 @@ router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
      * 전송 지갑의 private key 를 Database에서 가져옴.
      * @type {*}
      */
-    let privateKey = await getPrivateKeyOf(res.locals.connection, sender)
+    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -355,7 +291,7 @@ async function RLPEncodingInputWithFee(senderKey, receiver, contractAddr, amount
      * smart contract에서 실행할 input byte code 를 작성
      * @type {string}
      */
-    let functionABI = transferByteInput(receiver, Number(amount).toString(16))
+    let functionABI = kcts.transferByteInput(receiver, Number(amount).toString(16))
 
     /**
      * 전송하고자 하는 transaction 을 만들고 feeDelegatedSmartContractExecution 로 생성
@@ -399,7 +335,7 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * 전송 지갑의 private key 를 Database에서 가져옴.
      * @type {*}
      */
-    let privateKey = await getPrivateKeyOf(res.locals.connection, sender)
+    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -464,7 +400,7 @@ router.get('/:aoa/transferFT/:ft', function (req, res, last_function) {
   }
  */
 router.post('/:aoa/balanceFT/:ft', async function (req, res, last_function) {
-    let values = await getBalancesOfFT(res.locals.connection, req.params.aoa, req.params.ft)
+    let values = await kcts.getBalancesOfFT(res.locals.connection, req.params.aoa, req.params.ft)
     res.send(values[0][0])
 });
 
