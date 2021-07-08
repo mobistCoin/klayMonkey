@@ -46,6 +46,16 @@ router.get('/holders', async function (req, res, next) {
 });
 
 /**
+ * contract transfer history
+ */
+router.get('/transfers', async function (req, res, next) {
+    const Info = libkcts.ContractTransfers(res.locals.config.klaytn.contract);
+    let info_json = await Info;
+
+    res.send(info_json);
+});
+
+/**
  * Token 의 account 가 가지는 수량을 확인
  */
 router.get('/balanceOf/:aoa', async function (req, res, next) {

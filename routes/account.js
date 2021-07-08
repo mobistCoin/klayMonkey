@@ -5,6 +5,7 @@ const mysql = require('mysql2/promise')
 const Caver = require('caver-js')
 // const caver = new Caver('http://52.195.6.63:8551/')
 const caver = new Caver('https://api.baobab.klaytn.net:8651/')
+const libkct = require('libkct')
 
 const kcts = require('../libs/kcts')
 
@@ -383,9 +384,9 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
 /**
  * FT 전송 기록 확인용 API
  */
-router.get('/:aoa/transferFT/:ft', function (req, res, last_function) {
-    console.log(res.locals.config)
-    need_build(req, res);
+router.get('/:aoa/transferFT', async function (req, res, last_function) {
+    let transfers = await libkct.AccountTransfers(req.params.aoa)
+    res.send(transfers)
 });
 
 /**
