@@ -16,6 +16,11 @@ function need_build(req, res) {
     res.send('Need build function')
 }
 
+/**
+ * Database 계좌 정보를 읽어와서 전체 내용을 json으로 반환
+ * @param connection
+ * @returns {Promise<*>}
+ */
 async function getAccounts(connection) {
     /**
      * svc_id에 매칭되는 id와 password를 가져옴.
@@ -36,6 +41,12 @@ async function getAccounts(connection) {
     return value
 }
 
+/**
+ * Database 에서 Private Key 읽어오기
+ * @param connection Database 연결
+ * @param address Private key 를 읽가져오려는 지갑 주소
+ * @returns {Promise<*>} Private Key
+ */
 async function getPrivateKeyOf(connection, address) {
     /**
      * svc_id에 매칭되는 id와 password를 가져옴.
@@ -55,6 +66,12 @@ async function getPrivateKeyOf(connection, address) {
     return value[0][0].privatekey
 }
 
+/**
+ * 인코딩된 Smart Contract Data 생성용 함수
+ * @param address 토큰 전송 대상 주소
+ * @param amount 토큰 전송 수량
+ * @returns {string} 인코딩된 데이터
+ */
 function transferByteInput(address, amount) {
     /**
      * transfer 함수의 bytecode
@@ -296,6 +313,43 @@ router.post('/:aoa/transferFTWithFee/:ft', async function (req, res, last_functi
     })
 
     res.send(receipt)
+});
+
+async function RLPEncodingInput(senderKey, receiverAddr,amount) {
+    const sender = caver.wallet.keyring.createFromPrivateKey(senderKey)
+    caver.wallet.add(sender)
+
+    const feeDelegatedTx = caver.transaction.feeDelegatedValueTransfer.create({
+        from: sender.address,
+        to: receiverAddr,
+        value: amount,
+        gas: 50000,
+    })
+
+    await caver.wallet.sign(sender.address, feeDelegatedTx)
+
+    return feeDelegatedTx.getRLPEncoding()
+}
+
+router.post('/:aoa/transferFTWithFeev2/:ft', async function (req, res, last_function) {
+    let sender = req.params.aoa
+    let receiver = req.body.receiver
+    let amount = req.body.amount
+    //let feePayer = res.locals.config.klaytn.feePayer
+    let feePayerKey = res.locals.config.klaytn.feePayerKey
+    let contract = res.locals.config.klaytn.contract
+
+    let privateKey = await getPrivateKeyOf(res.locals.connection, sender)
+
+    const account = caver.wallet.keyring.createFromPrivateKey(privateKey)
+
+    const rlpEncodedStr = await RLPEncodingInput(account.address, receiver, amount)
+    const feeDelegateTx = caver.transaction.feeDelegatedValueTransfer.create(rlpEncodedStr)
+
+    feeDelegateTx.feePayer = feePayer.address
+    await caver.wallet.signAsFeePayer(feePayer.address, feeDelegateTx)
+
+    res.send(feeDelegateTx.getRLPEncoding())
 });
 
 /**
