@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const debug = require('debug')('account')
 const mysql = require('mysql2/promise')
-const klaytn = require('libkct')
 const Caver = require('caver-js')
 // const caver = new Caver('http://52.195.6.63:8551/')
 const caver = new Caver('https://api.baobab.klaytn.net:8651/')
