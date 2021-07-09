@@ -10,6 +10,7 @@ const debug = require('debug')('app')
 const indexRouter = require('./routes/index')
 const usersRouter = require('./routes/account')
 const contractRouter = require('./routes/contract')
+
 const app = express();
 
 // view engine setup
