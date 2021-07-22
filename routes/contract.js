@@ -23,6 +23,7 @@ function need_build(req, res) {
  */
 router.get('/', async function (req, res, next) {
     let isContract = await caver.rpc.klay.isContractAccount(res.locals.config.klaytn.contract)
+
     res.send({"status": true, "value": isContract});
 });
 
@@ -41,7 +42,7 @@ router.use('/:aoc', async function (req, res, next) {
 /**
  * holders list
  */
-router.get('/:aoc/holders', async function (req, res, next) {
+router.post('/:aoc/holders', async function (req, res, next) {
     const response = libkcts.ContractHolders(req.params.aoc);
     let result = await response;
     let lists = result.result
@@ -52,8 +53,8 @@ router.get('/:aoc/holders', async function (req, res, next) {
 /**
  * contract transfer history
  */
-router.get('/:aoc/transfers', async function (req, res, next) {
-    const Info = libkcts.ContractTransfers(res.locals.config.klaytn.contract);
+router.post('/:aoc/transfers', async function (req, res, next) {
+    const Info = libkcts.ContractTransfers(req.params.aoc);
     let info_json = await Info;
 
     res.send(info_json);
@@ -62,7 +63,7 @@ router.get('/:aoc/transfers', async function (req, res, next) {
 /**
  * Token 의 account 가 가지는 수량을 확인
  */
-router.get('/:aoc/balanceOf/:aoa', async function (req, res, next) {
+router.post('/:aoc/balanceOf/:aoa', async function (req, res, next) {
     kip7.options.address = req.params.aoc
     let balance = await kip7.balanceOf(req.params.aoa)
     res.send('{"status": True, "balance": ' + Number.parseFloat(balance).toFixed(0) + '}')

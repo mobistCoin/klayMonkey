@@ -10,6 +10,7 @@ const debug = require('debug')('app')
 const indexRouter = require('./routes/index')
 const usersRouter = require('./routes/account')
 const contractRouter = require('./routes/contract')
+const apiRouter = require('./routes/api')
 
 const app = express();
 
@@ -39,9 +40,9 @@ const jsonData = JSON.parse(fs.readFileSync('./platform.json', 'utf8'))
 /**
  * database 연결 설정값을 json 파일에서 읽어오기.
  */
-const {database, dbTable, dbUser, dbPass, svcID} = jsonData.database;
+const {database, dbUser, dbPass} = jsonData.database;
 
-const connection1 = mysql.createConnection({
+const connection_db = mysql.createConnection({
     host: 'localhost',
     user: dbUser,
     password: dbPass,
@@ -56,7 +57,7 @@ const connection1 = mysql.createConnection({
  * @returns {Promise<*>}
  */
 async function getSVC(svc_id) {
-    let connection = await connection1
+    let connection = await connection_db
     /**
      * svc_id에 매칭되는 id와 password를 가져옴.
      * @type {string}
@@ -75,34 +76,46 @@ async function getSVC(svc_id) {
     return value
 }
 
+/**
+ * API 인증을 위해 SVC의 ID와 PASSWORD를 확인한다.
+ * SVC에게 할당된 ID와 PASSWORD를 확인하여
+ * SVC는 API를 사용할 수 있는 권한을 얻을 수 있다.
+ */
 app.use( async function (req, res, next) {
     /**
      * database에서 data를 가져온다.
      * @type {*}
      */
-    const dbValue = await getSVC(jsonData.database.svcID)
-    res.locals.connection = await connection1
+    try{
+        const dbValue = await getSVC(req.body.svcID)
+        res.locals.connection = await connection_db
 
-    /**
-     * JSON 파일의 내용을 읽고 내용을 router에 전송
-     * @type {any}
-     */
-    res.locals.config = jsonData
-    /**
-     * 접속용 id 값을 database 값으로 설정
-     */
-    res.locals.id = dbValue[0][0].accesskey
-    /**
-     * 접속용 password를 database 값으로 설정
-     */
-    res.locals.password = dbValue[0][0].secretaccesskey
+        /**
+         * JSON 파일의 내용을 읽고 내용을 router에 전송
+         * @type {any}
+         */
+        res.locals.config = jsonData
+        /**
+         * 접속용 id 값을 database 값으로 설정
+         */
+        res.locals.id = dbValue[0][0].accesskey
+        /**
+         * 접속용 password를 database 값으로 설정
+         */
+        res.locals.password = dbValue[0][0].secretaccesskey
 
-    next();
+        next();
+    }
+    catch (exception) {
+        return res.send('{"status": "fail"}')
+    }
+
 })
 
 app.use('/', indexRouter);
 app.use('/account', usersRouter);
 app.use('/contract', contractRouter);
+app.use('/api', apiRouter)
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

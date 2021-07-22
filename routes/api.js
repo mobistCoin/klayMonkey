@@ -3,8 +3,8 @@ const router = express.Router();
 const debug = require('debug')('account')
 const mysql = require('mysql2/promise')
 const Caver = require('caver-js')
-// const caver = new Caver('http://52.195.6.63:8551/')
-const caver = new Caver('https://api.baobab.klaytn.net:8651/')
+const caver = new Caver('http://52.195.6.63:8551/')
+// const caver = new Caver('https://api.baobab.klaytn.net:8651/')
 const libkct = require('libkct')
 
 const kcts = require('../libs/kcts')
@@ -23,6 +23,10 @@ async function setAccountToInstance(instance, account) {
     return instance
 }
 
+/**
+ * 로그인용 middleware 부분
+ * 로그인용 middleware의 구조 확정.
+ */
 router.use((req, res, next) => {
     /**
      * 로그인 값을 app.js에서 처리하여 넘겨받아 사용.
@@ -40,6 +44,9 @@ router.use((req, res, next) => {
         return next();
     }
 
+    /**
+     * 로그인 실패시에는 401 에러를 발생함.
+     */
     res.set('WWW-Authenticate', 'Basic realm="401"');
     res.status(401).send('Authentication required.');
 });
@@ -54,6 +61,7 @@ router.get('/', function (req, res, next) {
 
 /**
  * account 생성용 API
+ * 확정됨.
  */
 router.post('/create', async function (req, res, last_function) {
     let value = caver.klay.accounts.create()
@@ -65,11 +73,10 @@ router.post('/create', async function (req, res, last_function) {
 
 /**
  * account List 내용 API
- * svc에서 해당하는 account 계정을 연계하기 위해서 사용되는 API.
  * @return
  */
-router.post('/lists', async function (req, res, last_function) {
-    let value = await kcts.getAccounts(res.locals.connection, req.body.svcID)
+router.get('/lists', async function (req, res, last_function) {
+    let value = await kcts.getAccounts(res.locals.connection)
     res.send(value[0])
 });
 

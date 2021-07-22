@@ -16,6 +16,7 @@ module.exports.getPrivateKeyOf = async function (connection, address) {
      * @type {*}
      */
     let value = await connection.query(sql)
+    console.log(value[0][0])
 
     /**
      * database 값을 반환.
@@ -28,19 +29,18 @@ module.exports.getPrivateKeyOf = async function (connection, address) {
  * @param connection
  * @returns {Promise<*>}
  */
-module.exports.getAccounts = async function (connection) {
+module.exports.getAccounts = async function (connection, svcID) {
     /**
      * svc_id에 매칭되는 id와 password를 가져옴.
      * @type {string}
      */
-    sql = 'SELECT * FROM account'
+    sql = 'SELECT * FROM account where svcId="' + svcID + '"'
 
     /**
      * mysql2에서는 query 데이터를 await로 가져와서 처리함.
      * @type {*}
      */
     let value = await connection.query(sql)
-    console.log(value)
 
     /**
      * database 값을 반환.
