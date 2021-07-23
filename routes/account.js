@@ -54,13 +54,32 @@ router.get('/', function (req, res, next) {
 
 /**
  * account 생성용 API
+ * 이 함수는 private Key를 포함하여 반환함.
  */
 router.post('/create', async function (req, res, last_function) {
     let value = caver.klay.accounts.create()
     let connection = res.locals.connection
-    sql = `Insert into account (address, publicKey, privateKey) values (?, ?, ?)`
-    connection.query(sql, [value.address, value.accountKey._key, value.privateKey])
+    sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
+    connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
+    connection.commit()
     res.send(value)
+});
+
+/**
+ * account 생성용 API
+ * 이 함수는 private Key를 포함하여 반환함.
+ */
+router.post('/createAccount', async function (req, res, last_function) {
+    let value = caver.klay.accounts.create()
+    let connection = res.locals.connection
+
+    sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
+    connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
+    connection.commit()
+    report = {
+        "address": value.address
+    }
+    res.send(report)
 });
 
 /**

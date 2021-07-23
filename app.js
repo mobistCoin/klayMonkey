@@ -95,6 +95,7 @@ app.use( async function (req, res, next) {
          * @type {any}
          */
         res.locals.config = jsonData
+        res.locals.svcID = req.body.svcID
         /**
          * 접속용 id 값을 database 값으로 설정
          */
@@ -106,7 +107,7 @@ app.use( async function (req, res, next) {
 
         next();
     }
-    catch (exception) {
+    catch (exception) {console.log(exception.s)
         return res.send('{"status": "fail"}')
     }
 
