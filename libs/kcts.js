@@ -72,6 +72,14 @@ module.exports.getOnluAddresses = async function (connection, svcID) {
     return value
 }
 
+module.exports.is_address = async function (connection, address, svcID) {
+    let sql = 'SELECT EXISTS(SELECT address FROM account where svcID="' + svcID + '" and address="' + address +
+        '") as success'
+    let value = await connection.query(sql)
+    // TextRow { success: 1 }
+    return value[0][0].success
+}
+
 async function getBalancesOfFT(connection, address, ft) {
     /**
      * svc_id에 매칭되는 id와 password를 가져옴.

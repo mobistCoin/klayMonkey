@@ -3,8 +3,8 @@ const router = express.Router();
 const debug = require('debug')('account')
 const mysql = require('mysql2/promise')
 const Caver = require('caver-js')
-// const caver = new Caver('http://52.195.6.63:8551/')
-const caver = new Caver('https://api.baobab.klaytn.net:8651/')
+const caver = new Caver('http://52.195.6.63:8551/')
+// const caver = new Caver('https://api.baobab.klaytn.net:8651/')
 const libkct = require('libkct')
 
 const kcts = require('../libs/kcts')
@@ -175,7 +175,7 @@ router.post('/register', function(req, res, last_function) {
     connection.query(sql, [req.body.address, req.body.accountkey, req.body.privatekey])
     // 기록한 내용을 API 값으로 반환
     res.send('{"status": True, "Address": ' + req.body.address + '}')
-})
+});
 
 /**
  * 외부 계정을 등록해제하기 위한  API 함수
@@ -196,7 +196,7 @@ router.post('/unregister', function(req, res, last_function) {
     connection.query(sql, [req.body.address, req.body.privatekey])
     // 기록한 내용을 API 값으로 반환
     res.send('{"status": True, "Address": ' + req.body.address + '}')
-})
+});
 
 /**
  * account의 정보 update용 API
@@ -225,8 +225,9 @@ router.get('/:aoa/transfers', function (req, res, last_function) {
 /**
  * account의 balance
  */
-router.get('/:aoa/balance', async function (req, res, last_function) {
+router.post('/:aoa/balance', async function (req, res, last_function) {
     let balance = await caver.rpc.klay.getBalance(req.params.aoa)
+    console.log("Test")
     let result = parseInt(balance)
     res.send('{"balance": ' + result + '}')
 });
