@@ -48,6 +48,30 @@ module.exports.getAccounts = async function (connection, svcID) {
     return value
 }
 
+/**
+ * Database 계좌 정보를 읽어와서 계좡 정보만 반환
+ * @param connection
+ * @returns {Promise<*>}
+ */
+module.exports.getOnluAddresses = async function (connection, svcID) {
+    /**
+     * svc_id에 매칭되는 id와 password를 가져옴.
+     * @type {string}
+     */
+    sql = 'SELECT address FROM account where svcId="' + svcID + '"'
+
+    /**
+     * mysql2에서는 query 데이터를 await로 가져와서 처리함.
+     * @type {*}
+     */
+    let value = await connection.query(sql)
+
+    /**
+     * database 값을 반환.
+     */
+    return value
+}
+
 async function getBalancesOfFT(connection, address, ft) {
     /**
      * svc_id에 매칭되는 id와 password를 가져옴.

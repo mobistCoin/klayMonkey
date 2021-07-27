@@ -30,17 +30,31 @@ router.use((req, res, next) => {
      * @type {{password: any, login: any}}
      */
     const auth = {login: res.locals.id, password: res.locals.password};
+    /**
+     * 로그인 값을 인증용 값으로 변환
+     * @type {string|string}
+     */
     const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
+    /**
+     * 인코딩 값에서 id와 password를 확인.
+     */
     const [login, password] = new Buffer(b64auth, 'base64').toString().split(':');
 
     /**
      * 입력받은 login, password가 database 값과 같은지 확인.
+     * 같으면 next() 함수로 넘어감.
      */
     if (login && password && login === auth.login && password === auth.password) {
         return next();
     }
 
+    /**
+     * 로그인 인증 실패시 인증 실패로 response 설정
+     */
     res.set('WWW-Authenticate', 'Basic realm="401"');
+    /**
+     * 401 에러로 설정된 값을 반환.
+     */
     res.status(401).send('Authentication required.');
 });
 
@@ -56,7 +70,7 @@ router.get('/', function (req, res, next) {
  * account 생성용 API
  * 이 함수는 private Key를 포함하여 반환함.
  */
-router.post('/create', async function (req, res, last_function) {
+router.post('/Make', async function (req, res, last_function) {
     let value = caver.klay.accounts.create()
     let connection = res.locals.connection
     sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
@@ -69,26 +83,76 @@ router.post('/create', async function (req, res, last_function) {
  * account 생성용 API
  * 이 함수는 private Key를 포함하여 반환함.
  */
-router.post('/createAccount', async function (req, res, last_function) {
+router.post('/create', async function (req, res, last_function) {
+    /**
+     * 사용자 계정 생 API를 호출
+     */
     let value = caver.klay.accounts.create()
+    /**
+     * Database 연결을 parameter로 받음.
+     * @type {any}
+     */
     let connection = res.locals.connection
 
+    /**
+     * database용 sql 구문을 작성
+     * @type {string}
+     */
     sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
+    /**
+     * sql 구문의 변수에 값을 채워 질의문구 완성
+     */
     connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
+    /**
+     * 쿼리를 commit하여 전송 완료
+     */
     connection.commit()
+    /**
+     * 생성된 account의 주소를 반환.
+     * @type {{address}}
+     */
     report = {
         "address": value.address
     }
+    /**
+     * 만들어진 json 내용를 반환.
+     */
     res.send(report)
 });
 
 /**
  * account List 내용 API
- * svc에서 해당하는 account 계정을 연계하기 위해서 사용되는 API.
+ * svc에서 해당하는 account 계정들의 list를 확인하기 위한 API.
+ * PrivateKey를 포함한 정보를 반환하는 API
  * @return
  */
-router.post('/lists', async function (req, res, last_function) {
+router.post('/getListAccounts', async function (req, res, last_function) {
+    /**
+     * database에서 사용자 계정 리스트를 작성함.
+     * @type {*}
+     */
     let value = await kcts.getAccounts(res.locals.connection, req.body.svcID)
+    /**
+     * privateKey를 포함한 정보를 반환.
+     */
+    res.send(value[0])
+});
+
+/**
+ * account List 내용 API
+ * svc에서 해당하는 account 계정들의 list를 확인하기 위한 API
+ * PrivateKey를 제외한 정보를 반환하는 API
+ * @return
+ */
+router.post('/getList', async function (req, res, last_function) {
+    /**
+     * database에서 사용자 계정 리스트를 작성함.
+     * @type {*}
+     */
+    let value = await kcts.getOnluAddresses(res.locals.connection, req.body.svcID)
+    /**
+     * privateKey를 포함한 정보를 반환.
+     */
     res.send(value[0])
 });
 
