@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const debug = require('debug')('contract')
 const Caver = require('caver-js')
-// const caver = new Caver('http://52.195.6.63:8551/')
-const caver = new Caver('https://api.baobab.klaytn.net:8651/')
+const caver = new Caver('http://52.195.6.63:8551/')
+// const caver = new Caver('https://api.baobab.klaytn.net:8651/')
 const libkcts = require('libkct')
 const axios = require('axios')
 

@@ -108,7 +108,7 @@ app.use( async function (req, res, next) {
         next();
     }
     catch (exception) {console.log(exception.s)
-        return res.send('{"status": "fail"}')
+        return res.send('{"status": "auth fail"}')
     }
 
 })

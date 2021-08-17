@@ -3,8 +3,8 @@ const router = express.Router();
 const debug = require('debug')('account')
 const mysql = require('mysql2/promise')
 const Caver = require('caver-js')
-const caver = new Caver('http://52.195.6.63:8551/')
-// const caver = new Caver('https://api.baobab.klaytn.net:8651/')
+// const caver = new Caver('http://52.195.6.63:8551/')
+const caver = new Caver('https://api.baobab.klaytn.net:8651/')
 const libkct = require('libkct')
 
 const kcts = require('../libs/kcts')
@@ -21,6 +21,105 @@ function need_build(req, res) {
 async function setAccountToInstance(instance, account) {
     instance.klay.accounts.wallet.add(account)
     return instance
+}
+
+/**
+ * fee delegation transaction 을 작성하고 RLP encoding 데이터를 반환하는 함수
+ * @param senderKey - 전송자의 private key
+ * @param receiverAddr - 토큰을 받는 지갑의 주소
+ * @param amount - 토큰 전송 수량
+ * @returns {Promise<string>}
+ * @constructor
+ */
+async function RLPEncodingInput(senderKey, receiverAddr, amount) {
+    /**
+     * keyring으로 사용자의 private key로 계정 생성.
+     * @type {SingleKeyring}
+     */
+    const sender = caver.wallet.keyring.createFromPrivateKey(senderKey)
+    /**
+     * 생성된 계정을 in-memory wallet 에 keyring 추가
+     */
+    caver.wallet.add(sender)
+
+    /**
+     * 전송하고자 하는 transaction 을 만들고 feeDelegatedValueTransfer 로 생성
+     * @type {FeeDelegatedValueTransfer}
+     */
+    const feeDelegatedTx = caver.transaction.feeDelegatedValueTransfer.create({
+        from: sender.address,
+        to: receiverAddr,
+        value: amount,
+        gas: 50000,
+    })
+
+    /**
+     * 전송자의 계정으로 sign을 한다.
+     */
+    await caver.wallet.sign(sender.address, feeDelegatedTx)
+
+    /**
+     * 사용이 끝난 keyring 의 제거
+     */
+    caver.wallet.remove(sender.address)
+
+    /**
+     * 만들어진 transaction의 RLP encoding 데이터를 반환
+     */
+    return feeDelegatedTx.getRLPEncoding()
+}
+
+/**
+ * fee delegation transaction 을 작성하고 RLP encoding 데이터를 반환하는 함수
+ * @param senderKey
+ * @param receiver
+ * @param contractAddr
+ * @param amount
+ * @returns {Promise<string>}
+ * @constructor
+ */
+async function RLPEncodingInputWithFee(senderKey, receiver, contractAddr, amount) {
+    /**
+     * keyring으로 사용자의 private key로 계정 생성.
+     * @type {SingleKeyring}
+     */
+    const sender = caver.wallet.keyring.createFromPrivateKey(senderKey)
+    /**
+     * 생성된 계정을 in-memory wallet 에 keyring 추가
+     */
+    caver.wallet.add(sender)
+
+    /**
+     * smart contract에서 실행할 input byte code 를 작성
+     * @type {string}
+     */
+    let functionABI = kcts.transferByteInput(receiver, Number(amount).toString(16))
+
+    /**
+     * 전송하고자 하는 transaction 을 만들고 feeDelegatedSmartContractExecution 로 생성
+     * @type {FeeDelegatedValueTransfer}
+     */
+    const feeDelegatedTx = caver.transaction.feeDelegatedSmartContractExecution.create({
+        from: sender.address,
+        to: contractAddr,
+        input: functionABI,
+        gas: 90000,
+    })
+
+    /**
+     * wallet 에 추가된 sender 의 keyring 으로 transaction 에 sign
+     */
+    await caver.wallet.sign(sender.address, feeDelegatedTx)
+
+    /**
+     * 사용이 끝난 keyring 의 제거
+     */
+    caver.wallet.remove(sender.address)
+
+    /**
+     * sign 된 transaction 의 RLP encoding 데이터를 반환
+     */
+    return feeDelegatedTx.getRLPEncoding()
 }
 
 router.use((req, res, next) => {
@@ -142,7 +241,8 @@ router.post('/getListAccounts', async function (req, res, last_function) {
  * account List 내용 API
  * svc에서 해당하는 account 계정들의 list를 확인하기 위한 API
  * PrivateKey를 제외한 정보를 반환하는 API
- * @return
+ * @param path - router path
+ * @return None
  */
 router.post('/getList', async function (req, res, last_function) {
     /**
@@ -156,32 +256,41 @@ router.post('/getList', async function (req, res, last_function) {
     res.send(value[0])
 });
 
+router.post('/isExist', async function (req, res, next) {
+
+})
+
 /**
  * 외부 계정을 등록하기 위한  API 함수
  * TODO: 지갑 주소의 validation, 중복 주소의 검사
  */
-router.post('/register', function(req, res, last_function) {
-    let connection = res.locals.connection
-    /**
-     * account 를 등록하기 위한 database sql 문구
-     * @param address 지갑의 주소
-     * @param accountkey 지갑의 공개키
-     * @param privatekey 지갑의 비밀키
-     * @type {string}
-     */
-    sql = `Insert into account (address, publicKey, privateKey) values (?, ?, ?)`
+router.post('/register', async function (req, res, last_function) {
+    try {
+        let connection = res.locals.connection
+        /**
+         * account 를 등록하기 위한 database sql 문구
+         * @param address 지갑의 주소
+         * @param accountkey 지갑의 공개키
+         * @param privatekey 지갑의 비밀키
+         * @type {string}
+         */
+        sql = `Insert into account (address, publicKey, privateKey, imported) values (?, ?, ?, ?)`
 
-    // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
-    connection.query(sql, [req.body.address, req.body.accountkey, req.body.privatekey])
-    // 기록한 내용을 API 값으로 반환
-    res.send('{"status": True, "Address": ' + req.body.address + '}')
+        // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
+        result = await connection.query(sql, [req.body.address, req.body.accountkey, req.body.privatekey, 1])
+
+        // 기록한 내용을 API 값으로 반환
+        res.send('{"status": true, "Address": "' + req.body.address + '"}')
+    } catch (err) {
+        res.send('{"status": false, "message": "Insert error"}')
+    }
 });
 
 /**
  * 외부 계정을 등록해제하기 위한  API 함수
  * TODO: 지갑 주소의 validation
  */
-router.post('/unregister', function(req, res, last_function) {
+router.post('/unregister', async function (req, res, last_function) {
     let connection = res.locals.connection
     /**
      * account 를 등록하기 위한 database sql 문구
@@ -193,9 +302,16 @@ router.post('/unregister', function(req, res, last_function) {
     sql = `DELETE FROM account WHERE address = ? AND privatekey = ?`
 
     // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
-    connection.query(sql, [req.body.address, req.body.privatekey])
+    result = await connection.query(sql, [req.body.address, req.body.privatekey])
+
+    console.log(result)
+    console.log(result[0].affectedRows)
     // 기록한 내용을 API 값으로 반환
-    res.send('{"status": True, "Address": ' + req.body.address + '}')
+    if (result[0].affectedRows == 0) {
+        res.send('{"status": false, "Address": "Do not found address."}')
+    } else {
+        res.send('{"status": true, "Address": "' + req.body.address + '"}')
+    }
 });
 
 /**
@@ -204,6 +320,16 @@ router.post('/unregister', function(req, res, last_function) {
 router.get('/update', function (req, res, last_function) {
     console.log(res.locals.config)
     need_build(req, res);
+});
+
+/**
+ * account의 balance
+ */
+router.post('/:aoa/balance', async function (req, res, last_function) {
+    let balance = await caver.rpc.klay.getBalance(req.params.aoa)
+    console.log("Test")
+    let result = parseInt(balance)
+    res.send('{"balance": ' + result + '}')
 });
 
 /**
@@ -223,88 +349,24 @@ router.get('/:aoa/transfers', function (req, res, last_function) {
 });
 
 /**
- * account의 balance
- */
-router.post('/:aoa/balance', async function (req, res, last_function) {
-    let balance = await caver.rpc.klay.getBalance(req.params.aoa)
-    console.log("Test")
-    let result = parseInt(balance)
-    res.send('{"balance": ' + result + '}')
-});
-
-/**
- * FT 전송용  API (with DB)
- */
-router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
-    let sender = req.params.aoa
-    let receiver = req.body.receiver
-    let amount = req.body.amount
-    let contract = req.params.ft
-
-    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
-
-    let kip7Instance = new caver.klay.KIP7(contract)
-    const account = caver.klay.accounts.createWithAccountKey(sender, privateKey)
-    caver.klay.accounts.wallet.add(account)
-    let reply = await kip7Instance.transfer(receiver, amount, {from: sender})
-    caver.klay.accounts.wallet.remove(account.address)
-
-    res.send(reply)
-});
-
-/**
- * fee delegation transaction 을 작성하고 RLP encoding 데이터를 반환하는 함수
- * @param senderKey 전송자의 private key
- * @param receiverAddr 토큰을 받는 지갑의 주소
- * @param amount 토큰 전송 수량
- * @returns {Promise<string>}
- * @constructor
- */
-async function RLPEncodingInput(senderKey, receiverAddr,amount) {
-    /**
-     * keyring으로 사용자의 private key로 계정 생성.
-     * @type {SingleKeyring}
-     */
-    const sender = caver.wallet.keyring.createFromPrivateKey(senderKey)
-    /**
-     * 생성된 계정을 in-memory wallet 에 keyring 추가
-     */
-    caver.wallet.add(sender)
-
-    /**
-     * 전송하고자 하는 transaction 을 만들고 feeDelegatedValueTransfer 로 생성
-     * @type {FeeDelegatedValueTransfer}
-     */
-    const feeDelegatedTx = caver.transaction.feeDelegatedValueTransfer.create({
-        from: sender.address,
-        to: receiverAddr,
-        value: amount,
-        gas: 50000,
-    })
-
-    /**
-     * 전송자의 계정으로 sign을 한다.
-     */
-    await caver.wallet.sign(sender.address, feeDelegatedTx)
-
-    /**
-     * 사용이 끝난 keyring 의 제거
-     */
-    caver.wallet.remove(sender.address)
-
-    /**
-     * 만들어진 transaction의 RLP encoding 데이터를 반환
-     */
-    return feeDelegatedTx.getRLPEncoding()
-}
-
-/**
- * 수수료 대납용 API
+ * 수수료 대납용 KLAY 전송 API
  */
 router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
+    /**
+     * 전송 지갑의 주소를 sender 에 설정
+     */
     let sender = req.params.aoa
+    /**
+     * 수신 지갑의 주소를 receiver 에 설정
+     */
     let receiver = req.body.receiver
+    /**
+     * 전송할 KLAY 수량을 amount 에 설정
+     */
     let amount = req.body.amount
+    /**
+     * 수수료를 대납할 계정의 PrivateKey 를 feePayerKey 에 설정
+     */
     let feePayerKey = res.locals.config.klaytn.feePayerKey
 
     /**
@@ -312,13 +374,13 @@ router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
      * @type {*}
      */
     let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
-    console.log(privateKey)
 
     /**
      * transaction encoding 데이터를 만든다.
      * @type {string}
      */
     const rlpEncodedStr = await RLPEncodingInput(privateKey, receiver, amount)
+
     /**
      * rlp 인코딩 데이터를 수수료 대납 전소용 transaction 으로 만든다.
      * @type {FeeDelegatedValueTransfer}
@@ -330,9 +392,10 @@ router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
      * @type {SingleKeyring}
      */
     const feePayer = caver.wallet.keyring.createFromPrivateKey(feePayerKey)
+
     /**
      * 지갑의 in-memory wallet 에 키링 추가
-    */
+     */
     caver.wallet.add(feePayer)
 
     /**
@@ -340,6 +403,7 @@ router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
      * @type {string}
      */
     feeDelegateTx.feePayer = feePayer.address
+
     /**
      * 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
      */
@@ -354,66 +418,29 @@ router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
 });
 
 /**
- * fee delegation transaction 을 작성하고 RLP encoding 데이터를 반환하는 함수
- * @param senderKey
- * @param receiver
- * @param contractAddr
- * @param amount
- * @returns {Promise<string>}
- * @constructor
- */
-async function RLPEncodingInputWithFee(senderKey, receiver, contractAddr, amount) {
-    /**
-     * keyring으로 사용자의 private key로 계정 생성.
-     * @type {SingleKeyring}
-     */
-    const sender = caver.wallet.keyring.createFromPrivateKey(senderKey)
-    /**
-     * 생성된 계정을 in-memory wallet 에 keyring 추가
-     */
-    caver.wallet.add(sender)
-
-    /**
-     * smart contract에서 실행할 input byte code 를 작성
-     * @type {string}
-     */
-    let functionABI = kcts.transferByteInput(receiver, Number(amount).toString(16))
-
-    /**
-     * 전송하고자 하는 transaction 을 만들고 feeDelegatedSmartContractExecution 로 생성
-     * @type {FeeDelegatedValueTransfer}
-     */
-    const feeDelegatedTx = caver.transaction.feeDelegatedSmartContractExecution.create({
-        from: sender.address,
-        to: contractAddr,
-        input: functionABI,
-        gas: 90000,
-    })
-
-    /**
-     * wallet 에 추가된 sender 의 keyring 으로 transaction 에 sign
-     */
-    await caver.wallet.sign(sender.address, feeDelegatedTx)
-
-    /**
-     * 사용이 끝난 keyring 의 제거
-     */
-    caver.wallet.remove(sender.address)
-
-    /**
-     * sign 된 transaction 의 RLP encoding 데이터를 반환
-     */
-    return feeDelegatedTx.getRLPEncoding()
-}
-
-/**
  * 수수료 대납용 FT 전송 API
  */
 router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function) {
+    /**
+     * 전송 지갑의 주소를 sender 에 설정
+     */
     let sender = req.params.aoa
+    /**
+     * 수신 지갑의 주소를 receiver 에 설정
+     */
     let receiver = req.body.receiver
+    /**
+     * 전송하려는 token 의 수량을 amount 에 설정
+     */
     let amount = req.body.amount
+    /**
+     * 수수료를 대납할 계정의 privateKey 를 설정
+     */
     let feePayerKey = res.locals.config.klaytn.feePayerKey
+    /**
+     * 전송하려는 token 의 contract 주소를 contract 에 설정.
+     * @type {Contract}
+     */
     let contract = res.locals.config.klaytn.contract
 
     /**
@@ -427,8 +454,9 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * @type {string}
      */
     const rlpEncodedStr = await RLPEncodingInputWithFee(privateKey, receiver, contract, amount)
+
     /**
-     * rlp 인코딩 데이터를 수수료 대납 전소용 transaction 으로 만든다.
+     * rlp 인코딩 데이터를 수수료 대납 전송용 transaction 으로 만든다.
      * @type {FeeDelegatedValueTransfer}
      */
     const feeDelegateTx = caver.transaction.feeDelegatedSmartContractExecution.create(rlpEncodedStr)
@@ -438,6 +466,7 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * @type {SingleKeyring}
      */
     const feePayer = caver.wallet.keyring.createFromPrivateKey(feePayerKey)
+
     /**
      * 지갑의 in-memory wallet 에 키링 추가
      */
@@ -448,6 +477,7 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * @type {string}
      */
     feeDelegateTx.feePayer = feePayer.address
+
     /**
      * 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
      */
@@ -468,6 +498,7 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
 
 /**
  * 수수료 대납용 FT 전송 API
+ * feePayer 의 주소가 정해져 있지 않기 때문에 params 로 feePayer 주소를 전달.
  */
 router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_function) {
     let sender = req.params.aoa
@@ -535,18 +566,86 @@ router.get('/:aoa/transferFT', async function (req, res, last_function) {
 });
 
 /**
- * FT 잔액 확인용 API (from DB)
+ * FT 잔액 확인용 API
+ * TODO: staking 정보 반환 필요.
  * @return
- {
+    {
     "address": "0x(account address)",
     "ft": "0x(ft address)",
     "values": "0.000000000000000000",
     "staking": "0.000000000000000000"
- }
+    }
  */
 router.post('/:aoa/balanceFT/:ft', async function (req, res, last_function) {
-    let values = await kcts.getBalancesOfFT(res.locals.connection, req.params.aoa, req.params.ft)
-    res.send(values[0][0])
+    const kip7 = new caver.kct.kip7(req.params.ft)
+    // kip7.options.address = req.params.aoc
+    let balance = await kip7.balanceOf(req.params.aoa)
+    result = {
+        "address": req.params.aoa,
+        "ft": req.params.ft,
+        "values": balance,
+    }
+
+    res.send(result)
+});
+
+/**
+ * FT 전송용  API (with DB)
+ * Database 에 등록된 계정 정보를 이용하여 전송하는 명령.
+ * Database 에 등록된 계정만 사용 가능하므로 계정의 database 등록 여부를 확인하여야 함.
+ */
+router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
+    /**
+     * 지갑 주소를 sender 에 입력
+     */
+    let sender = req.params.aoa
+    /**
+     * 수신자를 receiver 에 입력
+     * @type {RTCRtpReceiver}
+     */
+    let receiver = req.body.receiver
+    /**
+     * 전송량을 amount 에 입력
+     */
+    let amount = req.body.amount
+    /**
+     * 전송하려는 token 주소를 contract 에 입력
+     */
+    let contract = req.params.ft
+
+    /**
+     * 전송 권환 획득을 위해 Database 에서 privateKey 를 획득.
+     * @type {*}
+     */
+    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
+
+    /**
+     * Token 전송 명령을 실행하기 위해 contract instance 를 작성.
+     * @type {Klay.KIP7}
+     */
+    let kip7Instance = new caver.klay.KIP7(contract)
+    /**
+     * address 와 privateKey 로 사용자 계정 instance 를 생성.
+     */
+    const account = caver.klay.accounts.createWithAccountKey(sender, privateKey)
+    /**
+     * wallet instance 에 계정 정보를 추가.
+     */
+    caver.klay.accounts.wallet.add(account)
+    /**
+     * receiver 에게 amount 만큼의 token 량을 전송
+     * @type {*}
+     */
+    let reply = await kip7Instance.transfer(receiver, amount, {from: sender})
+    /**
+     * wallet 에서 계정 정보를 삭제.
+     */
+    caver.klay.accounts.wallet.remove(account.address)
+
+    /**
+     * API 의 결과로 전송
+     */
+    res.send(reply)
 });
 
 module.exports = router;

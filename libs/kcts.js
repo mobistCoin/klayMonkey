@@ -80,14 +80,14 @@ module.exports.is_address = async function (connection, address, svcID) {
     return value[0][0].success
 }
 
-async function getBalancesOfFT(connection, address, ft) {
+module.exports.getBalancesOfFT = async function (connection, address, ft) {
     /**
      * svc_id에 매칭되는 id와 password를 가져옴.
      * @type {string}
      */
     sql = 'SELECT * FROM balance where address="' + address + '" and ft ="' + ft + '"'
 
-    debug(sql)
+    console.log(sql)
 
     /**
      * mysql2에서는 query 데이터를 await로 가져와서 처리함.
