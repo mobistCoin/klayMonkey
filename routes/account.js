@@ -256,8 +256,23 @@ router.post('/getList', async function (req, res, last_function) {
     res.send(value[0])
 });
 
+/**
+ * 등록된 계정여부를 확인하기 위한 함수.
+ */
 router.post('/isExist', async function (req, res, next) {
+    let connection = res.locals.connection
 
+    let sql = 'select address from account WHERE address = ?'
+
+    let result = await connection.query(sql, [req.body.address])
+
+    // select 결과 존재하는 address 인 경우에는 검색되어 1이 반환되고
+    // 없는 address 라면 0이 반환된다.
+    if(result[0].length == 1) {
+        res.send('{"status": true}')
+    } else {
+        res.send('{"status": false}')
+    }
 })
 
 /**
@@ -304,8 +319,6 @@ router.post('/unregister', async function (req, res, last_function) {
     // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
     result = await connection.query(sql, [req.body.address, req.body.privatekey])
 
-    console.log(result)
-    console.log(result[0].affectedRows)
     // 기록한 내용을 API 값으로 반환
     if (result[0].affectedRows == 0) {
         res.send('{"status": false, "Address": "Do not found address."}')
