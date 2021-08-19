@@ -100,32 +100,3 @@ module.exports.getBalancesOfFT = async function (connection, address, ft) {
      */
     return value
 }
-
-/**
- * 인코딩된 Smart Contract Data 생성용 함수
- * @param address 토큰 전송 대상 주소
- * @param amount 토큰 전송 수량
- * @returns {string} 인코딩된 데이터
- */
-module.exports.transferByteInput = function (address, amount) {
-    /**
-     * transfer 함수의 bytecode
-     * @type {string}
-     */
-    const funcName = "0xa9059cbb"
-    /**
-     * Token 전송 대상이 되는 지갑 주소
-     * @type {string} 64 byte 길이의 문자열
-     */
-    let toAddr = address.substr(2).padStart(64, '0')
-    /**
-     * 전송되는 token 수량을 지정
-     * @type {string} 64 byte 길이의 문자열
-     */
-    let toAmount = amount.padStart(64, '0')
-
-    /**
-     * 만들어진 string 들을 전부 합하여 결과값으로 반환
-     */
-    return funcName + toAddr + toAmount
-}

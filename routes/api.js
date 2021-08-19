@@ -7,7 +7,7 @@ const caver = new Caver('http://52.195.6.63:8551/')
 // const caver = new Caver('https://api.baobab.klaytn.net:8651/')
 const libkct = require('libkct')
 
-const kcts = require('../libs/kcts')
+const kcts = require('../libs/db_works')
 
 /**
  * 개발되지 않은 페이지의 확인용 함수

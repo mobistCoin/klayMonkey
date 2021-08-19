@@ -3,11 +3,16 @@ const router = express.Router();
 const debug = require('debug')('account')
 const mysql = require('mysql2/promise')
 const Caver = require('caver-js')
-// const caver = new Caver('http://52.195.6.63:8551/')
-const caver = new Caver('https://api.baobab.klaytn.net:8651/')
-const libkct = require('libkct')
+const lib_kct = require('libkct')
+const db_works = require('../libs/db_works')
+const setting = require('../libs/variable')
+let caver
 
-const kcts = require('../libs/kcts')
+if (setting.mainnet === true) {
+    caver = new Caver('http://52.195.6.63:8551/')
+} else {
+    caver = new Caver('https://api.baobab.klaytn.net:8651/')
+}
 
 /**
  * 개발되지 않은 페이지의 확인용 함수
@@ -93,7 +98,7 @@ async function RLPEncodingInputWithFee(senderKey, receiver, contractAddr, amount
      * smart contract에서 실행할 input byte code 를 작성
      * @type {string}
      */
-    let functionABI = kcts.transferByteInput(receiver, Number(amount).toString(16))
+    let functionABI = db_works.transferByteInput(receiver, Number(amount).toString(16))
 
     /**
      * 전송하고자 하는 transaction 을 만들고 feeDelegatedSmartContractExecution 로 생성
@@ -122,6 +127,9 @@ async function RLPEncodingInputWithFee(senderKey, receiver, contractAddr, amount
     return feeDelegatedTx.getRLPEncoding()
 }
 
+/**
+ * 로그인처리용 middleware 구조
+ */
 router.use((req, res, next) => {
     /**
      * 로그인 값을 app.js에서 처리하여 넘겨받아 사용.
@@ -197,7 +205,7 @@ router.post('/create', async function (req, res, last_function) {
      * database용 sql 구문을 작성
      * @type {string}
      */
-    sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
+    let sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
     /**
      * sql 구문의 변수에 값을 채워 질의문구 완성
      */
@@ -210,7 +218,7 @@ router.post('/create', async function (req, res, last_function) {
      * 생성된 account의 주소를 반환.
      * @type {{address}}
      */
-    report = {
+    let report = {
         "address": value.address
     }
     /**
@@ -230,7 +238,7 @@ router.post('/getListAccounts', async function (req, res, last_function) {
      * database에서 사용자 계정 리스트를 작성함.
      * @type {*}
      */
-    let value = await kcts.getAccounts(res.locals.connection, req.body.svcID)
+    let value = await db_works.getAccounts(res.locals.connection, req.body.svcID)
     /**
      * privateKey를 포함한 정보를 반환.
      */
@@ -249,7 +257,7 @@ router.post('/getList', async function (req, res, last_function) {
      * database에서 사용자 계정 리스트를 작성함.
      * @type {*}
      */
-    let value = await kcts.getOnluAddresses(res.locals.connection, req.body.svcID)
+    let value = await db_works.getOnluAddresses(res.locals.connection, req.body.svcID)
     /**
      * privateKey를 포함한 정보를 반환.
      */
@@ -268,7 +276,7 @@ router.post('/isExist', async function (req, res, next) {
 
     // select 결과 존재하는 address 인 경우에는 검색되어 1이 반환되고
     // 없는 address 라면 0이 반환된다.
-    if(result[0].length == 1) {
+    if(result[0].length === 1) {
         res.send('{"status": true}')
     } else {
         res.send('{"status": false}')
@@ -280,6 +288,10 @@ router.post('/isExist', async function (req, res, next) {
  * TODO: 지갑 주소의 validation, 중복 주소의 검사
  */
 router.post('/register', async function (req, res, last_function) {
+    /**
+     * 동일한 주소를 추가할 경우에 SQL 에러가 발생하면서
+     * 예외처리가 필요함.
+     */
     try {
         let connection = res.locals.connection
         /**
@@ -289,10 +301,10 @@ router.post('/register', async function (req, res, last_function) {
          * @param privatekey 지갑의 비밀키
          * @type {string}
          */
-        sql = `Insert into account (address, publicKey, privateKey, imported) values (?, ?, ?, ?)`
+        let sql = `Insert into account (address, publicKey, privateKey, imported) values (?, ?, ?, ?)`
 
         // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
-        result = await connection.query(sql, [req.body.address, req.body.accountkey, req.body.privatekey, 1])
+        await connection.query(sql, [req.body.address, req.body.accountkey, req.body.privatekey, 1])
 
         // 기록한 내용을 API 값으로 반환
         res.send('{"status": true, "Address": "' + req.body.address + '"}')
@@ -314,13 +326,13 @@ router.post('/unregister', async function (req, res, last_function) {
      * @param privatekey 지갑의 비밀키
      * @type {string}
      */
-    sql = `DELETE FROM account WHERE address = ? AND privatekey = ?`
+    let sql = `DELETE FROM account WHERE address = ? AND privatekey = ?`
 
     // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
-    result = await connection.query(sql, [req.body.address, req.body.privatekey])
+    let result = await connection.query(sql, [req.body.address, req.body.privatekey])
 
     // 기록한 내용을 API 값으로 반환
-    if (result[0].affectedRows == 0) {
+    if (result[0].affectedRows === 0) {
         res.send('{"status": false, "Address": "Do not found address."}')
     } else {
         res.send('{"status": true, "Address": "' + req.body.address + '"}')
@@ -338,9 +350,8 @@ router.get('/update', function (req, res, last_function) {
 /**
  * account의 balance
  */
-router.post('/:aoa/balance', async function (req, res, last_function) {
-    let balance = await caver.rpc.klay.getBalance(req.params.aoa)
-    console.log("Test")
+router.post('/:eoa/balance', async function (req, res, last_function) {
+    let balance = await caver.rpc.klay.getBalance(req.params.eoa)
     let result = parseInt(balance)
     res.send('{"balance": ' + result + '}')
 });
@@ -386,7 +397,7 @@ router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
      * 전송 지갑의 private key 를 Database에서 가져옴.
      * @type {*}
      */
-    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
+    let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -460,7 +471,7 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * 전송 지갑의 private key 를 Database에서 가져옴.
      * @type {*}
      */
-    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
+    let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -524,7 +535,7 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
      * 전송 지갑의 private key 를 Database에서 가져옴.
      * @type {*}
      */
-    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
+    let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -574,7 +585,7 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
  * FT 전송 기록 확인용 API
  */
 router.get('/:aoa/transferFT', async function (req, res, last_function) {
-    let transfers = await libkct.AccountTransfers(req.params.aoa)
+    let transfers = await lib_kct.AccountTransfers(req.params.aoa)
     res.send(transfers)
 });
 
@@ -630,7 +641,7 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
      * 전송 권환 획득을 위해 Database 에서 privateKey 를 획득.
      * @type {*}
      */
-    let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
+    let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
 
     /**
      * Token 전송 명령을 실행하기 위해 contract instance 를 작성.
