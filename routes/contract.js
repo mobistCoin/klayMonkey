@@ -7,15 +7,7 @@ const axios = require('axios')
 
 const setting = require('../libs/variable')
 const {ER_INNODB_FORCED_RECOVERY} = require("mysql/lib/protocol/constants/errors");
-let caver
-
-if (setting.mainnet === true) {
-    caver = new Caver('http://52.195.6.63:8551/')
-} else {
-    caver = new Caver('https://api.baobab.klaytn.net:8651/')
-}
-
-const kip7 = new caver.kct.kip7()
+// const kip7 = new caver.kct.kip7()
 
 /**
  * 개발되지 않은 페이지의 확인용 함수
@@ -24,6 +16,18 @@ const kip7 = new caver.kct.kip7()
  */
 function need_build(req, res) {
     res.send('Need build function')
+}
+
+function get_caver(netID) {
+    let caver
+
+    if (netID === 8217) {
+        caver = new Caver('http://52.195.6.63:8551/')
+    } else {
+        caver = new Caver('https://api.baobab.klaytn.net:8651/')
+    }
+
+    return caver
 }
 
 /**
@@ -77,7 +81,10 @@ router.get('/', async function (req, res, next) {
  * contract 정보를 확인하고 전체 명령을 제어할 수 있는 PAGE
  */
 router.use('/:contract', async function (req, res, next) {
+    let caver = get_caver(res.locals.netID)
+
     let isContract = await caver.rpc.klay.isContractAccount(req.params.contract)
+    console.log(isContract)
     if (isContract !== true) {
         res.send({"status": true, "value": isContract});
         return
@@ -89,7 +96,7 @@ router.use('/:contract', async function (req, res, next) {
  * holders list 반환하는 함수
  */
 router.post('/:contract/holders', async function (req, res, next) {
-    const response = libkcts.ContractHolders(setting.mainnet, req.params.contract);
+    const response = libkcts.ContractHolders(res.locals.netID, req.params.contract);
     let result = await response;
     let lists = result.result
 
@@ -98,9 +105,10 @@ router.post('/:contract/holders', async function (req, res, next) {
 
 /**
  * contract transfer history
+ * page 마다 25건의 전송 내역을 출력함.
  */
-router.post('/:contract/transfers', async function (req, res, next) {
-    const Info = libkcts.ContractTransfers(setting.mainnet, req.params.contract);
+router.post('/:contract/transfers/:page?', async function (req, res, next) {
+    const Info = libkcts.ContractTransfers(res.locals.netID, req.params.contract, req.params.page);
     let info_json = await Info;
 
     res.send(info_json);
@@ -110,13 +118,21 @@ router.post('/:contract/transfers', async function (req, res, next) {
  * Token 의 account 가 가지는 수량을 확인
  */
 router.post('/:contract/balanceOf/:eoa', async function (req, res, next) {
+    let caver = get_caver(res.locals.netID)
+    let kip7 = new caver.kct.kip7()
     kip7.options.address = req.params.contract
     let balance = await kip7.balanceOf(req.params.eoa)
     res.send('{"status": True, "balance": ' + Number.parseFloat(balance).toFixed(0) + '}')
 });
 
+/**
+ * Smart Contract 관련 거래 내역을 반환
+ * page 값을 기초로 페이지별 조회 가능.
+ * page 마다 25건의 거래 내역을 출력.
+ * contract
+ */
 router.post('/:contract/txs/:page?', async function (req, res, next) {
-    const Info = libkcts.AccountTxs(setting.mainnet, req.params.contract, req.params.page)
+    const Info = libkcts.AccountTxs(res.locals.netID, req.params.contract, req.params.page)
     let info_json = await Info
 
     res.send(info_json)

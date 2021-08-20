@@ -87,6 +87,11 @@ app.use( async function (req, res, next) {
      * @type {*}
      */
     try{
+        /**
+         * Database 저장소에서 svc id 키를 사용하여
+         * id, password 값을 가져오는 부분.
+         * @type {*}
+         */
         const dbValue = await getSVC(req.body.svcID)
         res.locals.connection = await connection_db
 
@@ -96,6 +101,13 @@ app.use( async function (req, res, next) {
          */
         res.locals.config = jsonData
         res.locals.svcID = req.body.svcID
+
+        /**
+         * 메인넷 사용 여부 전환
+         * @type {number} 설정한 network id를 변수에 설정.
+         */
+        res.locals.netID = req.body.netID
+
         /**
          * 접속용 id 값을 database 값으로 설정
          */
