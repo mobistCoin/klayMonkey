@@ -6,13 +6,6 @@ const Caver = require('caver-js')
 const lib_kct = require('libkct')
 const db_works = require('../libs/db_works')
 const setting = require('../libs/variable')
-let caver
-
-if (setting.mainnet === true) {
-    caver = new Caver('http://52.195.6.63:8551/')
-} else {
-    caver = new Caver('https://api.baobab.klaytn.net:8651/')
-}
 
 /**
  * 개발되지 않은 페이지의 확인용 함수
@@ -21,6 +14,18 @@ if (setting.mainnet === true) {
  */
 function need_build(req, res) {
     res.send('Need build function')
+}
+
+function get_caver(netID) {
+    let caver
+
+    if (netID === 8217) {
+        caver = new Caver('http://52.195.6.63:8551/')
+    } else {
+        caver = new Caver('https://api.baobab.klaytn.net:8651/')
+    }
+
+    return caver
 }
 
 async function setAccountToInstance(instance, account) {
@@ -169,7 +174,6 @@ router.use((req, res, next) => {
  * account 정보를 확인하고 전체 명령을 제어할 수 있는 PAGE
  */
 router.get('/', function (req, res, next) {
-    console.log(typeof res)
     need_build(req, res);
 });
 
@@ -177,10 +181,12 @@ router.get('/', function (req, res, next) {
  * account 생성용 API
  * 이 함수는 private Key를 포함하여 반환함.
  */
-router.post('/Make', async function (req, res, last_function) {
+router.post('/create_base', async function (req, res, last_function) {
     let value = caver.klay.accounts.create()
     let connection = res.locals.connection
+
     sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
+
     connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
     connection.commit()
     res.send(value)
@@ -233,7 +239,7 @@ router.post('/create', async function (req, res, last_function) {
  * PrivateKey를 포함한 정보를 반환하는 API
  * @return
  */
-router.post('/getListAccounts', async function (req, res, last_function) {
+router.post('/getList_base', async function (req, res, last_function) {
     /**
      * database에서 사용자 계정 리스트를 작성함.
      * @type {*}
@@ -276,7 +282,7 @@ router.post('/isExist', async function (req, res, next) {
 
     // select 결과 존재하는 address 인 경우에는 검색되어 1이 반환되고
     // 없는 address 라면 0이 반환된다.
-    if(result[0].length === 1) {
+    if (result[0].length === 1) {
         res.send('{"status": true}')
     } else {
         res.send('{"status": false}')
@@ -285,7 +291,6 @@ router.post('/isExist', async function (req, res, next) {
 
 /**
  * 외부 계정을 등록하기 위한  API 함수
- * TODO: 지갑 주소의 validation, 중복 주소의 검사
  */
 router.post('/register', async function (req, res, last_function) {
     /**
@@ -294,6 +299,7 @@ router.post('/register', async function (req, res, last_function) {
      */
     try {
         let connection = res.locals.connection
+
         /**
          * account 를 등록하기 위한 database sql 문구
          * @param address 지갑의 주소
@@ -301,10 +307,11 @@ router.post('/register', async function (req, res, last_function) {
          * @param privatekey 지갑의 비밀키
          * @type {string}
          */
-        let sql = `Insert into account (address, publicKey, privateKey, imported) values (?, ?, ?, ?)`
+        let sql = `Insert into account (address, publicKey, privateKey, svcID, imported, type) values (?, ?, ?, ?, ?, ?)`
 
         // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
-        await connection.query(sql, [req.body.address, req.body.accountkey, req.body.privatekey, 1])
+        await connection.query(sql,
+            [req.body.address, req.body.accountkey, req.body.privatekey, res.locals.svcID, 1, res.locals.type])
 
         // 기록한 내용을 API 값으로 반환
         res.send('{"status": true, "Address": "' + req.body.address + '"}')
@@ -340,46 +347,90 @@ router.post('/unregister', async function (req, res, last_function) {
 });
 
 /**
- * account의 정보 update용 API
+ * account 정보 update API
+ * 미구현 함수.
  */
 router.get('/update', function (req, res, last_function) {
-    console.log(res.locals.config)
     need_build(req, res);
 });
 
 /**
- * account의 balance
+ * account balance 구하는 함수
+ * 반환값:  {"balance": 100000000000000000} = 0.1 klay
  */
 router.post('/:eoa/balance', async function (req, res, last_function) {
+    let caver = get_caver(res.locals.netID)
     let balance = await caver.rpc.klay.getBalance(req.params.eoa)
     let result = parseInt(balance)
     res.send('{"balance": ' + result + '}')
 });
 
 /**
+ * FT 잔액 확인용 API
+ * contract 주소의 contract 확인 루틴 추가.
+ * @return
+    {
+    "address": "0x(account address)",
+    "ft": "0x(ft address)",
+    "values": "0.000000000000000000",
+    }
+ */
+router.post('/:eoa/balanceFT/:contract', async function (req, res, last_function) {
+    let caver = get_caver(res.locals.netID)
+    let isContract = await caver.rpc.klay.isContractAccount(req.params.contract)
+
+    if (isContract === true) {
+        const kip7 = new caver.kct.kip7(req.params.contract)
+        let balance = await kip7.balanceOf(req.params.eoa)
+        result = {
+            "address": req.params.eoa,
+            "contract": req.params.contract,
+            "values": balance
+        }
+    } else {
+        result = {
+            "address": req.params.eoa,
+            "contract": req.params.contract,
+            "values": "None"
+        }
+    }
+
+    res.send(result)
+});
+
+/**
  * account의 klay 전송용 API
  */
-router.get('/:aoa/transfer', function (req, res, last_function) {
-    console.log(res.locals.config)
-    need_build(req, res);
+router.post('/:eoa/txs/:page?', async function (req, res, last_function) {
+    let result = lib_kct.AccountTxs(res.locals.netID, req.params.eoa, req.params.page)
+    res.send(await result)
 });
 
 /**
  * account의 klay 전송 기록용 API
  */
-router.get('/:aoa/transfers', function (req, res, last_function) {
-    console.log(res.locals.config)
-    need_build(req, res);
+router.post('/:eoa/transfers/:page?', async function (req, res, last_function) {
+    let result = lib_kct.AccountTransfers(res.locals.netID, req.params.eoa, req.params.page)
+    res.send(await result)
+});
+
+/**
+ * FT 전송 기록 확인용 API
+ */
+router.get('/:eoa/transferFT', async function (req, res, last_function) {
+    let transfers = await lib_kct.AccountTransfers(req.params.eoa)
+    res.send(transfers)
 });
 
 /**
  * 수수료 대납용 KLAY 전송 API
  */
-router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
+router.post('/:eoa/transferWithFee', async function (req, res, last_function) {
+    let caver = get_caver(res.locals.netID)
     /**
      * 전송 지갑의 주소를 sender 에 설정
      */
-    let sender = req.params.aoa
+    let sender = req.params.eoa
     /**
      * 수신 지갑의 주소를 receiver 에 설정
      */
@@ -579,38 +630,6 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
     caver.wallet.remove(feePayer.address)
 
     res.send(feeDelegateTx)
-});
-
-/**
- * FT 전송 기록 확인용 API
- */
-router.get('/:aoa/transferFT', async function (req, res, last_function) {
-    let transfers = await lib_kct.AccountTransfers(req.params.aoa)
-    res.send(transfers)
-});
-
-/**
- * FT 잔액 확인용 API
- * TODO: staking 정보 반환 필요.
- * @return
-    {
-    "address": "0x(account address)",
-    "ft": "0x(ft address)",
-    "values": "0.000000000000000000",
-    "staking": "0.000000000000000000"
-    }
- */
-router.post('/:aoa/balanceFT/:ft', async function (req, res, last_function) {
-    const kip7 = new caver.kct.kip7(req.params.ft)
-    // kip7.options.address = req.params.aoc
-    let balance = await kip7.balanceOf(req.params.aoa)
-    result = {
-        "address": req.params.aoa,
-        "ft": req.params.ft,
-        "values": balance,
-    }
-
-    res.send(result)
 });
 
 /**

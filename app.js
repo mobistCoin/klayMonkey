@@ -102,6 +102,8 @@ app.use( async function (req, res, next) {
         res.locals.config = jsonData
         res.locals.svcID = req.body.svcID
 
+        res.locals.type = req.body.type
+
         /**
          * 메인넷 사용 여부 전환
          * @type {number} 설정한 network id를 변수에 설정.
