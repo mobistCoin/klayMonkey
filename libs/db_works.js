@@ -2,26 +2,28 @@
  * Database 에서 Private Key 읽어오기
  * @param connection Database 연결
  * @param address Private key 를 읽가져오려는 지갑 주소
- * @returns {Promise<*>} Private Key
+ * @returns {Promise<*>} DB 에서 주소를 찾은 경우에는 Private Key<p>
+ *                      DB 에서 주소를 찾지 못한 경우에는 null
  */
 module.exports.getPrivateKeyOf = async function (connection, address) {
     /**
-     * svc_id에 매칭되는 id와 password를 가져옴.
+     * account 테이블에서 address 주소를 검색하는 sql 구문
      * @type {string}
      */
     let sql = 'SELECT * FROM account where address="' + address + '"'
 
     /**
-     * mysql2에서는 query 데이터를 await로 가져와서 처리함.
+     * mysql2에서는 query 데이터를 await 처리한 결과
      * @type {*}
      */
     let value = await connection.query(sql)
-    console.log(value[0][0])
 
-    /**
-     * database 값을 반환.
-     */
-    return value[0][0].privatekey
+    if (value[0].length === 0) {
+        return null
+    }
+
+    // database 에서 찾은 address 주소의 privateKey 값을 반환.
+    return value[0][0].privateKey
 }
 
 /**
@@ -49,7 +51,7 @@ module.exports.getAccounts = async function (connection, svcID) {
 }
 
 /**
- * Database 계좌 정보를 읽어와서 계좡 정보만 반환
+ * Database 계좌 정보를 읽어와서 계좌 정보만 반환
  * @param connection
  * @returns {Promise<*>}
  */
