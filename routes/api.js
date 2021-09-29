@@ -165,6 +165,11 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
     let contract = req.params.ft
 
     let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
+    // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
+    if( privateKey == null) {
+        // 에러 처리를 위해 에러 메시지를 반환함.
+        return res.send({"status": "address can't found"})
+    }
 
     let kip7Instance = new caver.klay.KIP7(contract)
     const account = caver.klay.accounts.createWithAccountKey(sender, privateKey)
@@ -235,7 +240,11 @@ router.post('/:aoa/transferWithFee', async function (req, res, last_function) {
      * @type {*}
      */
     let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
-    console.log(privateKey)
+    // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
+    if( privateKey == null) {
+        // 에러 처리를 위해 에러 메시지를 반환함.
+        return res.send({"status": "address can't found"})
+    }
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -344,6 +353,11 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * @type {*}
      */
     let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
+    // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
+    if( privateKey == null) {
+        // 에러 처리를 위해 에러 메시지를 반환함.
+        return res.send({"status": "address can't found"})
+    }
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -361,9 +375,7 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * @type {SingleKeyring}
      */
     const feePayer = caver.wallet.keyring.createFromPrivateKey(feePayerKey)
-    /**
-     * 지갑의 in-memory wallet 에 키링 추가
-     */
+    // 지갑의 in-memory wallet 에 키링 추가
     caver.wallet.add(feePayer)
 
     /**
@@ -371,19 +383,13 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * @type {string}
      */
     feeDelegateTx.feePayer = feePayer.address
-    /**
-     * 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
-     */
+    // 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
     feeDelegateTxSigned = await caver.wallet.signAsFeePayer(feePayer.address, feeDelegateTx)
 
-    /**
-     * 만들어진 transaction 데이터를 sendRawTransaction 으로 실제 klaytn 으로 전송
-     */
+    // 만들어진 transaction 데이터를 sendRawTransaction 으로 실제 klaytn 으로 전송
     caver.rpc.klay.sendRawTransaction(feeDelegateTxSigned)
 
-    /**
-     * 사용이 끝난 keyring 의 제거
-     */
+    // 사용이 끝난 keyring 의 제거
     caver.wallet.remove(feePayer.address)
 
     res.send(feeDelegateTx)
@@ -404,6 +410,11 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
      * @type {*}
      */
     let privateKey = await kcts.getPrivateKeyOf(res.locals.connection, sender)
+    // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
+    if( privateKey == null) {
+        // 에러 처리를 위해 에러 메시지를 반환함.
+        return res.send({"status": "address can't found"})
+    }
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -421,9 +432,7 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
      * @type {SingleKeyring}
      */
     const feePayer = caver.wallet.keyring.createFromPrivateKey(feePayerKey)
-    /**
-     * 지갑의 in-memory wallet 에 키링 추가
-     */
+    // 지갑의 in-memory wallet 에 키링 추가
     caver.wallet.add(feePayer)
 
     /**
@@ -431,19 +440,13 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
      * @type {string}
      */
     feeDelegateTx.feePayer = feePayer.address
-    /**
-     * 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
-     */
+    // 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
     feeDelegateTxSigned = await caver.wallet.signAsFeePayer(feePayer.address, feeDelegateTx)
 
-    /**
-     * 만들어진 transaction 데이터를 sendRawTransaction 으로 실제 klaytn 으로 전송
-     */
+    // 만들어진 transaction 데이터를 sendRawTransaction 으로 실제 klaytn 으로 전송
     caver.rpc.klay.sendRawTransaction(feeDelegateTxSigned)
 
-    /**
-     * 사용이 끝난 keyring 의 제거
-     */
+    // 사용이 끝난 keyring 의 제거
     caver.wallet.remove(feePayer.address)
 
     res.send(feeDelegateTx)
