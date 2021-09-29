@@ -12,7 +12,6 @@ const nodemailer = require('nodemailer')
 const indexRouter = require('./routes/index')
 const usersRouter = require('./routes/account')
 const contractRouter = require('./routes/contract')
-const apiRouter = require('./routes/api')
 const mailRouter = require('./routes/mailer')
 
 const app = express();
@@ -133,7 +132,6 @@ app.use( async function (req, res, next) {
 app.use('/', indexRouter);
 app.use('/account', usersRouter);
 app.use('/contract', contractRouter);
-app.use('/api', apiRouter);
 app.use('/mailer', mailRouter);
 
 // catch 404 and forward to error handler
