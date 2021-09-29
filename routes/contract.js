@@ -35,8 +35,8 @@ function get_caver(netID) {
  */
 router.use((req, res, next) => {
     /**
-     * 로그인 값을 app.js에서 처리하여 넘겨받아 사용.
-     * id는 accesskey 값으로 password는 secretaccesskey 값으로 설정.
+     * 로그인 값을 app.js 에서 처리하여 넘겨받아 사용.
+     * id는 accessKey 값으로 password 는 secretAccessKey 값으로 설정.
      * @type {{password: any, login: any}}
      */
     const auth = {login: res.locals.id, password: res.locals.password};
@@ -46,12 +46,12 @@ router.use((req, res, next) => {
      */
     const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
     /**
-     * 인코딩 값에서 id와 password를 확인.
+     * 인코딩 값에서 id와 password 를 확인.
      */
     const [login, password] = new Buffer(b64auth, 'base64').toString().split(':');
 
     /**
-     * 입력받은 login, password가 database 값과 같은지 확인.
+     * 입력받은 login, password 가 database 값과 같은지 확인.
      * 같으면 next() 함수로 넘어감.
      */
     if (login && password && login === auth.login && password === auth.password) {
