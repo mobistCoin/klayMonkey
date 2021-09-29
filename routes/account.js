@@ -243,9 +243,7 @@ router.post('/getList_base', async function (req, res, last_function) {
      * @type {*}
      */
     let value = await db_works.getAccounts(res.locals.connection, req.body.svcID)
-    /**
-     * privateKey를 포함한 정보를 반환.
-     */
+    // privateKey를 포함한 정보를 반환. DB 에서 해당 주소가 없어도 반환 값은 존재함.
     res.send(value[0])
 });
 
@@ -425,21 +423,13 @@ router.get('/:eoa/transferFT', async function (req, res, last_function) {
  */
 router.post('/:eoa/transferWithFee', async function (req, res, last_function) {
     let caver = get_caver(res.locals.netID)
-    /**
-     * 전송 지갑의 주소를 sender 에 설정
-     */
+    // 전송 지갑의 주소를 sender 에 설정
     let sender = req.params.eoa
-    /**
-     * 수신 지갑의 주소를 receiver 에 설정
-     */
+    // 수신 지갑의 주소를 receiver 에 설정
     let receiver = req.body.receiver
-    /**
-     * 전송할 KLAY 수량을 amount 에 설정
-     */
+    // 전송할 KLAY 수량을 amount 에 설정
     let amount = req.body.amount
-    /**
-     * 수수료를 대납할 계정의 PrivateKey 를 feePayerKey 에 설정
-     */
+    // 수수료를 대납할 계정의 PrivateKey 를 feePayerKey 에 설정
     let feePayerKey = res.locals.config.klaytn.feePayerKey
 
     /**
@@ -447,9 +437,6 @@ router.post('/:eoa/transferWithFee', async function (req, res, last_function) {
      * @type {*}
      */
     let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
-    if( privateKey == null) {
-        return res.send({"status": "address can't found"})
-    }
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -469,9 +456,7 @@ router.post('/:eoa/transferWithFee', async function (req, res, last_function) {
      */
     const feePayer = caver.wallet.keyring.createFromPrivateKey(feePayerKey)
 
-    /**
-     * 지갑의 in-memory wallet 에 키링 추가
-     */
+    // 지갑의 in-memory wallet 에 키링 추가
     caver.wallet.add(feePayer)
 
     /**
@@ -480,14 +465,10 @@ router.post('/:eoa/transferWithFee', async function (req, res, last_function) {
      */
     feeDelegateTx.feePayer = feePayer.address
 
-    /**
-     * 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
-     */
+    // 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
     await caver.wallet.signAsFeePayer(feePayer.address, feeDelegateTx)
 
-    /**
-     * 사용이 끝난 keyring 의 제거
-     */
+    // 사용이 끝난 keyring 의 제거
     caver.wallet.remove(feePayer.address)
 
     res.send(feeDelegateTx)
@@ -497,21 +478,13 @@ router.post('/:eoa/transferWithFee', async function (req, res, last_function) {
  * 수수료 대납용 FT 전송 API
  */
 router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function) {
-    /**
-     * 전송 지갑의 주소를 sender 에 설정
-     */
+    // 전송 지갑의 주소를 sender 에 설정
     let sender = req.params.aoa
-    /**
-     * 수신 지갑의 주소를 receiver 에 설정
-     */
+    // 수신 지갑의 주소를 receiver 에 설정
     let receiver = req.body.receiver
-    /**
-     * 전송하려는 token 의 수량을 amount 에 설정
-     */
+    // 전송하려는 token 의 수량을 amount 에 설정
     let amount = req.body.amount
-    /**
-     * 수수료를 대납할 계정의 privateKey 를 설정
-     */
+    // 수수료를 대납할 계정의 privateKey 를 설정
     let feePayerKey = res.locals.config.klaytn.feePayerKey
     /**
      * 전송하려는 token 의 contract 주소를 contract 에 설정.
@@ -524,6 +497,11 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      * @type {*}
      */
     let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
+    // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
+    if (privateKey == null) {
+        // 에러 처리를 위해 에러 메시지를 반환함.
+        return res.send({"status": "address can't found"})
+    }
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -543,9 +521,7 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      */
     const feePayer = caver.wallet.keyring.createFromPrivateKey(feePayerKey)
 
-    /**
-     * 지갑의 in-memory wallet 에 키링 추가
-     */
+    // 지갑의 in-memory wallet 에 키링 추가
     caver.wallet.add(feePayer)
 
     /**
@@ -554,19 +530,13 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
      */
     feeDelegateTx.feePayer = feePayer.address
 
-    /**
-     * 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
-     */
+    // 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
     feeDelegateTxSigned = await caver.wallet.signAsFeePayer(feePayer.address, feeDelegateTx)
 
-    /**
-     * 만들어진 transaction 데이터를 sendRawTransaction 으로 실제 klaytn 으로 전송
-     */
+    // 만들어진 transaction 데이터를 sendRawTransaction 으로 실제 klaytn 으로 전송
     caver.rpc.klay.sendRawTransaction(feeDelegateTxSigned)
 
-    /**
-     * 사용이 끝난 keyring 의 제거
-     */
+    // 사용이 끝난 keyring 의 제거
     caver.wallet.remove(feePayer.address)
 
     res.send(feeDelegateTx)
@@ -588,6 +558,11 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
      * @type {*}
      */
     let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
+    // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
+    if (privateKey == null) {
+        // 에러 처리를 위해 에러 메시지를 반환함.
+        return res.send({"status": "address can't found"})
+    }
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -605,9 +580,7 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
      * @type {SingleKeyring}
      */
     const feePayer = caver.wallet.keyring.createFromPrivateKey(feePayerKey)
-    /**
-     * 지갑의 in-memory wallet 에 키링 추가
-     */
+    // 지갑의 in-memory wallet 에 키링 추가
     caver.wallet.add(feePayer)
 
     /**
@@ -615,19 +588,13 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
      * @type {string}
      */
     feeDelegateTx.feePayer = feePayer.address
-    /**
-     * 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
-     */
+    // 수수료 대납용 transaction 코드의 sign 하여 실행시킴.
     feeDelegateTxSigned = await caver.wallet.signAsFeePayer(feePayer.address, feeDelegateTx)
 
-    /**
-     * 만들어진 transaction 데이터를 sendRawTransaction 으로 실제 klaytn 으로 전송
-     */
+    // 만들어진 transaction 데이터를 sendRawTransaction 으로 실제 klaytn 으로 전송
     caver.rpc.klay.sendRawTransaction(feeDelegateTxSigned)
 
-    /**
-     * 사용이 끝난 keyring 의 제거
-     */
+    // 사용이 끝난 keyring 의 제거
     caver.wallet.remove(feePayer.address)
 
     res.send(feeDelegateTx)
@@ -640,22 +607,16 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
  */
 router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
     let caver = get_caver(res.locals.netID)
-    /**
-     * 지갑 주소를 sender 에 입력
-     */
+    // 지갑 주소를 sender 에 입력
     let sender = req.params.aoa
     /**
      * 수신자를 receiver 에 입력
      * @type {RTCRtpReceiver}
      */
     let receiver = req.body.receiver
-    /**
-     * 전송량을 amount 에 입력
-     */
+    // 전송량을 amount 에 입력
     let amount = req.body.amount
-    /**
-     * 전송하려는 token 주소를 contract 에 입력
-     */
+    // 전송하려는 token 주소를 contract 에 입력
     let contract = req.params.ft
 
     /**
@@ -663,33 +624,29 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
      * @type {*}
      */
     let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
+    // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
+    if( privateKey == null) {
+        // 에러 처리를 위해 에러 메시지를 반환함.
+        return res.send({"status": "address can't found"})
+    }
 
     /**
      * Token 전송 명령을 실행하기 위해 contract instance 를 작성.
      * @type {Klay.KIP7}
      */
     let kip7Instance = new caver.klay.KIP7(contract)
-    /**
-     * address 와 privateKey 로 사용자 계정 instance 를 생성.
-     */
+    // address 와 privateKey 로 사용자 계정 instance 를 생성.
     const account = caver.klay.accounts.createWithAccountKey(sender, privateKey)
-    /**
-     * wallet instance 에 계정 정보를 추가.
-     */
+    // wallet instance 에 계정 정보를 추가.
     caver.klay.accounts.wallet.add(account)
     /**
      * receiver 에게 amount 만큼의 token 량을 전송
      * @type {*}
      */
     let reply = await kip7Instance.transfer(receiver, amount, {from: sender})
-    /**
-     * wallet 에서 계정 정보를 삭제.
-     */
+    // wallet 에서 계정 정보를 삭제.
     caver.klay.accounts.wallet.remove(account.address)
 
-    /**
-     * API 의 결과로 전송
-     */
     res.send(reply)
 });
 

@@ -29,7 +29,8 @@ module.exports.getPrivateKeyOf = async function (connection, address) {
 /**
  * Database 계좌 정보를 읽어와서 전체 내용을 json으로 반환
  * @param connection
- * @returns {Promise<*>}
+ * @param svcID
+ * @return {Promise<*>}
  */
 module.exports.getAccounts = async function (connection, svcID) {
     /**
@@ -53,7 +54,8 @@ module.exports.getAccounts = async function (connection, svcID) {
 /**
  * Database 계좌 정보를 읽어와서 계좌 정보만 반환
  * @param connection
- * @returns {Promise<*>}
+ * @param svcID
+ * @return {Promise<*>}
  */
 module.exports.getOnluAddresses = async function (connection, svcID) {
     /**
@@ -74,31 +76,17 @@ module.exports.getOnluAddresses = async function (connection, svcID) {
     return value
 }
 
-module.exports.is_address = async function (connection, address, svcID) {
-    let sql = 'SELECT EXISTS(SELECT address FROM account where svcID="' + svcID + '" and address="' + address +
+/**
+ * svcID와 EOA를 바탕으로 Database의 account 테이블에서 계좌 주소가 존재하는지 여부를 반환
+ * @param connection Database 연결 handler
+ * @param EOA 찾으려는 계좌 주소
+ * @param svcID EOA가 속하는 svcID
+ * @return {Promise<*>} EOA가 svcID에 속하면 1이 반환.<p>EOA가 svcID에 속하지 않으면 0이 반환.
+ */
+module.exports.is_address = async function (connection, EOA, svcID) {
+    let sql = 'SELECT EXISTS(SELECT * FROM account where svcID="' + svcID + '" and address="' + EOA +
         '") as success'
     let value = await connection.query(sql)
-    // TextRow { success: 1 }
+
     return value[0][0].success
-}
-
-module.exports.getBalancesOfFT = async function (connection, address, ft) {
-    /**
-     * svc_id에 매칭되는 id와 password를 가져옴.
-     * @type {string}
-     */
-    sql = 'SELECT * FROM balance where address="' + address + '" and ft ="' + ft + '"'
-
-    console.log(sql)
-
-    /**
-     * mysql2에서는 query 데이터를 await로 가져와서 처리함.
-     * @type {*}
-     */
-    let value = await connection.query(sql)
-
-    /**
-     * database 값을 반환.
-     */
-    return value
 }
