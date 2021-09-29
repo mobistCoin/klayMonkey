@@ -6,6 +6,7 @@ const Caver = require('caver-js')
 const lib_kct = require('libkct')
 const db_works = require('../libs/db_works')
 const setting = require('../libs/variable')
+const {NULL} = require("mysql/lib/protocol/constants/types");
 
 /**
  * 개발되지 않은 페이지의 확인용 함수
@@ -182,6 +183,7 @@ router.get('/', function (req, res, next) {
  * 이 함수는 private Key를 포함하여 반환함.
  */
 router.post('/create_base', async function (req, res, last_function) {
+    let caver = get_caver(res.locals.netID)
     let value = caver.klay.accounts.create()
     let connection = res.locals.connection
 
@@ -197,39 +199,35 @@ router.post('/create_base', async function (req, res, last_function) {
  * 이 함수는 private Key를 포함하여 반환함.
  */
 router.post('/create', async function (req, res, last_function) {
+    let caver = get_caver(res.locals.netID)
+
     /**
-     * 사용자 계정 생 API를 호출
+     * 사용자 계정 생성 API를 호출
      */
     let value = caver.klay.accounts.create()
     /**
-     * Database 연결을 parameter로 받음.
+     * Database 연결 정보를 가진 변수
      * @type {any}
      */
     let connection = res.locals.connection
 
     /**
-     * database용 sql 구문을 작성
+     * database용 sql 구문
      * @type {string}
      */
     let sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
-    /**
-     * sql 구문의 변수에 값을 채워 질의문구 완성
-     */
+    // sql 구문의 변수에 값을 채워 질의문구 완성
     connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
-    /**
-     * 쿼리를 commit하여 전송 완료
-     */
+    // 쿼리를 commit하여 전송 완료
     connection.commit()
     /**
-     * 생성된 account의 주소를 반환.
+     * 생성된 account 의 주소 값
      * @type {{address}}
      */
     let report = {
         "address": value.address
     }
-    /**
-     * 만들어진 json 내용를 반환.
-     */
+    // 만들어진 지갑 주소 값을 반환함.
     res.send(report)
 });
 
@@ -449,6 +447,9 @@ router.post('/:eoa/transferWithFee', async function (req, res, last_function) {
      * @type {*}
      */
     let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
+    if( privateKey == null) {
+        return res.send({"status": "address can't found"})
+    }
 
     /**
      * transaction encoding 데이터를 만든다.
@@ -638,6 +639,7 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
  * Database 에 등록된 계정만 사용 가능하므로 계정의 database 등록 여부를 확인하여야 함.
  */
 router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
+    let caver = get_caver(res.locals.netID)
     /**
      * 지갑 주소를 sender 에 입력
      */
