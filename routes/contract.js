@@ -22,8 +22,10 @@ function get_caver(netID) {
     let caver
 
     if (netID === 8217) {
+        debug('working in main net.')
         caver = new Caver('http://52.195.6.63:8551/')
     } else {
+        debug('working in test net.')
         caver = new Caver('https://api.baobab.klaytn.net:8651/')
     }
 
@@ -84,7 +86,7 @@ router.use('/:contract', async function (req, res, next) {
     let caver = get_caver(res.locals.netID)
 
     let isContract = await caver.rpc.klay.isContractAccount(req.params.contract)
-    console.log(isContract)
+    debug(isContract)
     if (isContract !== true) {
         res.send({"status": true, "value": isContract});
         return

@@ -1,12 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const debug = require('debug')('account')
-const mysql = require('mysql2/promise')
+// const mysql = require('mysql2/promise')
 const Caver = require('caver-js')
 const lib_kct = require('libkct')
 const db_works = require('../libs/db_works')
-const setting = require('../libs/variable')
-const {NULL} = require("mysql/lib/protocol/constants/types");
+// const setting = require('../libs/variable')
+// const {NULL} = require("mysql/lib/protocol/constants/types");
+const logger = require('../libs/log_winston')
+const util = require('util')
+const debug_log = util.debuglog('account')
 
 /**
  * 개발되지 않은 페이지의 확인용 함수
@@ -21,8 +24,10 @@ function get_caver(netID) {
     let caver
 
     if (netID === 8217) {
+        logger.debug('working in main net.')
         caver = new Caver('http://52.195.6.63:8551/')
     } else {
+        logger.debug('working in test net.')
         caver = new Caver('https://api.baobab.klaytn.net:8651/')
     }
 
@@ -134,47 +139,10 @@ async function RLPEncodingInputWithFee(senderKey, receiver, contractAddr, amount
 }
 
 /**
- * 로그인처리용 middleware 구조
- */
-router.use((req, res, next) => {
-    /**
-     * 로그인 값을 app.js에서 처리하여 넘겨받아 사용.
-     * id는 accesskey 값으로 password는 secretaccesskey 값으로 설정.
-     * @type {{password: any, login: any}}
-     */
-    const auth = {login: res.locals.id, password: res.locals.password};
-    /**
-     * 로그인 값을 인증용 값으로 변환
-     * @type {string|string}
-     */
-    const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
-    /**
-     * 인코딩 값에서 id와 password를 확인.
-     */
-    const [login, password] = new Buffer(b64auth, 'base64').toString().split(':');
-
-    /**
-     * 입력받은 login, password가 database 값과 같은지 확인.
-     * 같으면 next() 함수로 넘어감.
-     */
-    if (login && password && login === auth.login && password === auth.password) {
-        return next();
-    }
-
-    /**
-     * 로그인 인증 실패시 인증 실패로 response 설정
-     */
-    res.set('WWW-Authenticate', 'Basic realm="401"');
-    /**
-     * 401 에러로 설정된 값을 반환.
-     */
-    res.status(401).send('Authentication required.');
-});
-
-/**
  * account 정보를 확인하고 전체 명령을 제어할 수 있는 PAGE
  */
 router.get('/', function (req, res, next) {
+    logger.info(util.format('account page for Service ID: %s', res.locals.svcID))
     need_build(req, res);
 });
 
@@ -184,13 +152,26 @@ router.get('/', function (req, res, next) {
  */
 router.post('/create_base', async function (req, res, last_function) {
     let caver = get_caver(res.locals.netID)
+    // 사용자 계정 생성 API 호출
     let value = caver.klay.accounts.create()
+    /**
+     * Database 연결 정보를 가진 변수
+     * @type {any}
+     */
     let connection = res.locals.connection
 
-    sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
+    /**
+     * database용 sql 구문
+     * @type {string}
+     */
+    let sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
 
+    // sql 구문의 변수에 값을 채워 질의문구 완성
     connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
+    // 쿼리를 commit하여 전송 완료
     connection.commit()
+    logger.info('create address ' + report['address'] + ' in service ID: ' + res.locals.svcID)
+    // API 반환 결과를 출력
     res.send(value)
 });
 
@@ -198,12 +179,10 @@ router.post('/create_base', async function (req, res, last_function) {
  * account 생성용 API
  * 이 함수는 private Key를 포함하여 반환함.
  */
-router.post('/create', async function (req, res, last_function) {
+router.post('/create', function (req, res, last_function) {
     let caver = get_caver(res.locals.netID)
 
-    /**
-     * 사용자 계정 생성 API를 호출
-     */
+    // 사용자 계정 생성 API 호출
     let value = caver.klay.accounts.create()
     /**
      * Database 연결 정보를 가진 변수
@@ -227,6 +206,7 @@ router.post('/create', async function (req, res, last_function) {
     let report = {
         "address": value.address
     }
+    logger.info('create address ' + report['address'] + ' in service ID: ' + res.locals.svcID)
     // 만들어진 지갑 주소 값을 반환함.
     res.send(report)
 });
@@ -243,6 +223,8 @@ router.post('/getList_base', async function (req, res, last_function) {
      * @type {*}
      */
     let value = await db_works.getAccounts(res.locals.connection, req.body.svcID)
+
+    logger.info('>>> Get Full User List')
     // privateKey를 포함한 정보를 반환. DB 에서 해당 주소가 없어도 반환 값은 존재함.
     res.send(value[0])
 });
@@ -260,9 +242,10 @@ router.post('/getList', async function (req, res, last_function) {
      * @type {*}
      */
     let value = await db_works.getOnluAddresses(res.locals.connection, req.body.svcID)
-    /**
-     * privateKey를 포함한 정보를 반환.
-     */
+
+    logger.info('>>> Get Light User List')
+
+    // privateKey를 포함한 정보를 반환.
     res.send(value[0])
 });
 
@@ -272,8 +255,10 @@ router.post('/getList', async function (req, res, last_function) {
 router.post('/isExist', async function (req, res, next) {
     let connection = res.locals.connection
 
+    // sql 구문의 변수에 값을 채워 질의문구 완성
     let sql = 'select address from account WHERE address = ?'
 
+    // 쿼리를 실행하여 결과 값을 얻는다.
     let result = await connection.query(sql, [req.body.address])
 
     // select 결과 존재하는 address 인 경우에는 검색되어 1이 반환되고
@@ -289,10 +274,7 @@ router.post('/isExist', async function (req, res, next) {
  * 외부 계정을 등록하기 위한  API 함수
  */
 router.post('/register', async function (req, res, last_function) {
-    /**
-     * 동일한 주소를 추가할 경우에 SQL 에러가 발생하면서
-     * 예외처리가 필요함.
-     */
+    // 동일한 주소를 추가할 경우에 SQL 에러가 발생하면서 예외처리가 필요함.
     try {
         let connection = res.locals.connection
 
@@ -309,9 +291,13 @@ router.post('/register', async function (req, res, last_function) {
         await connection.query(sql,
             [req.body.address, req.body.accountkey, req.body.privatekey, res.locals.svcID, 1, res.locals.type])
 
+        logger.info(util.format('Address: %s 추가 완료', req.body.address))
+
         // 기록한 내용을 API 값으로 반환
         res.send('{"status": true, "Address": "' + req.body.address + '"}')
     } catch (err) {
+        logger.info('Address 추가 동작에서 에러 발생.')
+        logger.info(err)
         res.send('{"status": false, "message": "Insert error"}')
     }
 });
@@ -321,24 +307,31 @@ router.post('/register', async function (req, res, last_function) {
  * TODO: 지갑 주소의 validation
  */
 router.post('/unregister', async function (req, res, last_function) {
-    let connection = res.locals.connection
-    /**
-     * account 를 등록하기 위한 database sql 문구
-     * @param address 지갑의 주소
-     * @param accountkey 지갑의 공개키
-     * @param privatekey 지갑의 비밀키
-     * @type {string}
-     */
-    let sql = `DELETE FROM account WHERE address = ? AND privatekey = ?`
+    try {
+        let connection = res.locals.connection
+        /**
+         * account 를 등록하기 위한 database sql 문구
+         * @param address 지갑의 주소
+         * @param accountkey 지갑의 공개키
+         * @param privatekey 지갑의 비밀키
+         * @type {string}
+         */
+        let sql = `DELETE FROM account WHERE address = ? AND privatekey = ?`
 
-    // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
-    let result = await connection.query(sql, [req.body.address, req.body.privatekey])
+        // database 의 account 내용으로 등록할 값들을 사용하여 database 기록
+        let result = await connection.query(sql, [req.body.address, req.body.privatekey])
 
-    // 기록한 내용을 API 값으로 반환
-    if (result[0].affectedRows === 0) {
-        res.send('{"status": false, "Address": "Do not found address."}')
-    } else {
-        res.send('{"status": true, "Address": "' + req.body.address + '"}')
+        // 기록한 내용을 API 값으로 반환
+        if (result[0].affectedRows === 0) {
+            logger.info(util.format('Address: %s 삭제 실패.', req.body.address))
+            res.send('{"status": false, "Address": "Do not found address."}')
+        } else {
+            logger.info(util.format('Address: %s 삭제 완료', req.body.address))
+            res.send('{"status": true, "Address": "' + req.body.address + '"}')
+        }
+    } catch (err) {
+        logger.debug(util.format('Unregister Error. 예상치 못한 에러 발생.'))
+        logger.debug(err)
     }
 });
 
@@ -356,8 +349,12 @@ router.get('/update', function (req, res, last_function) {
  */
 router.post('/:eoa/balance', async function (req, res, last_function) {
     let caver = get_caver(res.locals.netID)
+    // API 통해서 지갑의 잔고 조회
     let balance = await caver.rpc.klay.getBalance(req.params.eoa)
+    // 잔고값 확인
     let result = parseInt(balance)
+    // query 결과 로그
+    logger.info(util.format('Get balance %s Klay for %s', balance / 10 ** 18, req.params.eoa))
     res.send('{"balance": ' + result + '}')
 });
 
@@ -373,18 +370,27 @@ router.post('/:eoa/balance', async function (req, res, last_function) {
  */
 router.post('/:eoa/balanceFT/:contract', async function (req, res, last_function) {
     let caver = get_caver(res.locals.netID)
+    // API 통해서 Token Balance 조회
     let isContract = await caver.rpc.klay.isContractAccount(req.params.contract)
 
+    // 조회하려는 토큰이 존재하는 경우 지갑의 잔고를 조회하여 반환함.
     if (isContract === true) {
         const kip7 = new caver.kct.kip7(req.params.contract)
         let balance = await kip7.balanceOf(req.params.eoa)
+        logger.debug(util.format('>>> 조회 완료 - 지갑주소: %s, token: %s, 잔고: %s',
+            req.params.eoa, req.params.contract, balance / 10 ** 18))
+        // 반환 값 작성
         result = {
+            "status": true,
             "address": req.params.eoa,
             "contract": req.params.contract,
             "values": balance
         }
     } else {
+        logger.debug(util.format('>>> 조회 실패 - 지갑주소: %s, token: %s', req.params.eoa, req.params.contract))
+        // 에러시 반환되는 값을 작성.
         result = {
+            "status": false,
             "address": req.params.eoa,
             "contract": req.params.contract,
             "values": "None"
@@ -625,7 +631,7 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
      */
     let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
     // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
-    if( privateKey == null) {
+    if (privateKey == null) {
         // 에러 처리를 위해 에러 메시지를 반환함.
         return res.send({"status": "address can't found"})
     }
