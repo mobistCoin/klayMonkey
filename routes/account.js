@@ -175,12 +175,19 @@ router.post('/create_base', async function (req, res, last_function) {
     res.send(value)
 });
 
+const sleep = (ms) => {
+    return new Promise(resolve=>{
+        setTimeout(resolve,ms)
+    })
+}
+
 /**
  * account 생성용 API
  * 이 함수는 private Key를 포함하여 반환함.
  */
 router.post('/create', function (req, res, last_function) {
     let caver = get_caver(res.locals.netID)
+    let reports = ""
 
     // 사용자 계정 생성 API 호출
     let value = caver.klay.accounts.create()
@@ -195,6 +202,7 @@ router.post('/create', function (req, res, last_function) {
      * @type {string}
      */
     let sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
+    logger.debug(sql)
     // sql 구문의 변수에 값을 채워 질의문구 완성
     connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
     // 쿼리를 commit하여 전송 완료
@@ -206,9 +214,11 @@ router.post('/create', function (req, res, last_function) {
     let report = {
         "address": value.address
     }
+    reports = reports + report
     logger.info('create address ' + report['address'] + ' in service ID: ' + res.locals.svcID)
     // 만들어진 지갑 주소 값을 반환함.
-    res.send(report)
+
+    res.send(reports)
 });
 
 /**
@@ -401,19 +411,71 @@ router.post('/:eoa/balanceFT/:contract', async function (req, res, last_function
 });
 
 /**
- * account의 klay 전송용 API
+ * account Klay transaction 전송 기록 전체 조회용 API
+ */
+router.post('/:eoa/txs/all', async function(req, res, last_function) {
+    let cnt = 0
+    let result = null
+    let rest = null
+    let limit = 0
+
+    logger.info(' === Query all txs.')
+    do {
+        rest = await lib_kct.AccountTxs(res.locals.netID, req.params.eoa, cnt)
+        limit = limit + rest['result'].length
+        cnt = cnt + 1
+        if (result == null) {
+            result = rest
+        } else {
+            result['result'] = result['result'].concat(rest['result'])
+        }
+        result['limit'] = limit
+    } while(limit === 25)
+    res.send(result)
+})
+
+
+/**
+ * account의 klay transaction 전송 기록 조회용 API
  */
 router.post('/:eoa/txs/:page?', async function (req, res, last_function) {
-    let result = lib_kct.AccountTxs(res.locals.netID, req.params.eoa, req.params.page)
-    res.send(await result)
+    logger.info(util.format(' === Query txs page: %d.', req.params.page))
+    let result = await lib_kct.AccountTxs(res.locals.netID, req.params.eoa, req.params.page)
+    res.send(result)
 });
 
 /**
- * account의 klay 전송 기록용 API
+ * account token transfer 전송 기록 전체 조회용 API
+ */
+router.post('/:eoa/transfers/all', async function (req, res, last_function) {
+    let cnt = 0
+    let result = null
+    let rest = null
+    let limit = 0
+
+    logger.info(' === Query all transfers.')
+
+    do {
+        rest = await lib_kct.AccountTransfers(res.locals.netID, req.params.eoa, req.params.page)
+        limit = limit + rest['result'].length
+        cnt = cnt + 1
+        if (result == null) {
+            result = rest
+        } else {
+            result['result'] = result['result'].concat(rest['result'])
+        }
+        result['limit'] = limit
+    } while(limit === 25)
+    res.send(result)
+});
+
+/**
+ * account token transfer 전송 기록 조회용 API
  */
 router.post('/:eoa/transfers/:page?', async function (req, res, last_function) {
-    let result = lib_kct.AccountTransfers(res.locals.netID, req.params.eoa, req.params.page)
-    res.send(await result)
+    logger.info(util.format(' === Query transfers page: %d.', req.params.page))
+    let result = await lib_kct.AccountTransfers(res.locals.netID, req.params.eoa, req.params.page)
+    res.send(result)
 });
 
 /**
@@ -610,8 +672,17 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
  * FT 전송용  API (with DB)
  * Database 에 등록된 계정 정보를 이용하여 전송하는 명령.
  * Database 에 등록된 계정만 사용 가능하므로 계정의 database 등록 여부를 확인하여야 함.
+ * request body 내용
+ * json_body = {
+ *     "svcID": "svc ID",
+ *     "netID": 8217,
+ *     "receiver": address,
+ *     "amount": vol
+ * }
  */
 router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
+    // Network ID를 request body 내용에서 확인함.
+    // request body 내용에 json 구조로 netID 값을 추가하여 전송해야함.
     let caver = get_caver(res.locals.netID)
     // 지갑 주소를 sender 에 입력
     let sender = req.params.aoa
@@ -625,12 +696,14 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
     // 전송하려는 token 주소를 contract 에 입력
     let contract = req.params.ft
 
+    logger.debug('route test part')
     /**
      * 전송 권환 획득을 위해 Database 에서 privateKey 를 획득.
      * @type {*}
      */
     let privateKey = await db_works.getPrivateKeyOf(res.locals.connection, sender)
     // privateKey 내용이 비어 있다면 주소가 없어서 해당 값을 가져오지 못한 경우임.
+
     if (privateKey == null) {
         // 에러 처리를 위해 에러 메시지를 반환함.
         return res.send({"status": "address can't found"})

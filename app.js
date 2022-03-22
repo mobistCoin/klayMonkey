@@ -2,17 +2,20 @@ const createError = require('http-errors')
 const express = require('express')
 const path = require('path')
 const cookieParser = require('cookie-parser')
-const logger = require('morgan')
+const logger = require('./libs/log_winston')
+const morgan = require('morgan')
 const fs = require('fs')
 const mysql = require('mysql2/promise')
-const debug = require('debug')('app')
 
-const nodemailer = require('nodemailer')
+// const nodemailer = require('nodemailer')
 
 const indexRouter = require('./routes/index')
 const usersRouter = require('./routes/account')
 const contractRouter = require('./routes/contract')
 const mailRouter = require('./routes/mailer')
+
+const combined = ':remote-addr - :remote-user ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'
+const morganFormat = process.env.NODE_ENV !== "production" ? "dev" : combined;
 
 const app = express();
 
@@ -20,18 +23,12 @@ const app = express();
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
-/**
- * log 내용을 저장할 파일을 지정
- * @type {WriteStream}
- */
-logstream = fs.createWriteStream('app.log', {'flags': 'w'})
-
-app.use(logger({'stream': logstream, 'format': 'dev'}));
-
 app.use(express.json());
 app.use(express.urlencoded({extended: false}));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.use(morgan(morganFormat, {stream : logger.stream}))
 
 /**
  * 설정 파일의 내용을 json Data 로 변환.
@@ -63,6 +60,7 @@ async function getSVC(svc_id) {
      * @type {string}
      */
     sql = 'SELECT * FROM svc where pid=' + svc_id
+    logger.debug(sql)
 
     /**
      * mysql2에서는 query 데이터를 await 처리하여 반환
@@ -105,6 +103,7 @@ app.use( async function (req, res, next) {
          * @type {number} 설정한 network id를 변수에 설정.
          */
         res.locals.netID = req.body.netID
+        logger.debug(req.body.netID)
 
         // 접속용 id 값을 database 값으로 설정
         res.locals.id = dbValue[0][0].accesskey
@@ -114,6 +113,7 @@ app.use( async function (req, res, next) {
         next();
     }
     catch (exception) {console.log(exception.s)
+        logger.debug('main 인증 실패.')
         return res.send('{"status": "auth fail"}')
     }
 
@@ -126,6 +126,7 @@ app.use('/mailer', mailRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
+    logger.info('Error route')
     next(createError(404));
 });
 
