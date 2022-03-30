@@ -9,11 +9,13 @@ const mysql = require('mysql2/promise')
 
 // const nodemailer = require('nodemailer')
 
+// API routing 설정
 const indexRouter = require('./routes/index')
 const usersRouter = require('./routes/account')
 const contractRouter = require('./routes/contract')
 const mailRouter = require('./routes/mailer')
 
+// Debug 메시지 설정
 const combined = ':remote-addr - :remote-user ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'
 const morganFormat = process.env.NODE_ENV !== "production" ? "dev" : combined;
 
@@ -39,6 +41,7 @@ const jsonData = JSON.parse(fs.readFileSync('./platform.json', 'utf8'))
 // database 연결 설정값을 json 파일에서 읽어오기.
 const {database, dbUser, dbPass} = jsonData.database;
 
+// mysql Database 연결 작성
 const connection_db = mysql.createConnection({
     host: 'localhost',
     user: dbUser,
@@ -119,6 +122,7 @@ app.use( async function (req, res, next) {
 
 })
 
+// API routing 등록 진행.
 app.use('/', indexRouter);
 app.use('/account', usersRouter);
 app.use('/contract', contractRouter);
@@ -141,4 +145,5 @@ app.use(function (err, req, res) {
     res.render('error');
 });
 
+// app 설정하는 부분.
 module.exports = app;
