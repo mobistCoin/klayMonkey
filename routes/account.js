@@ -1,15 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const debug = require('debug')('account')
-// const mysql = require('mysql2/promise')
 const Caver = require('caver-js')
 const lib_kct = require('libkct')
 const db_works = require('../libs/db_works')
-// const setting = require('../libs/variable')
-// const {NULL} = require("mysql/lib/protocol/constants/types");
 const logger = require('../libs/log_winston')
 const util = require('util')
-const debug_log = util.debuglog('account')
+// const debug_log = util.debuglog('account')
 
 /**
  * 개발되지 않은 페이지의 확인용 함수
@@ -20,6 +17,13 @@ function need_build(req, res) {
     res.send('Need build function')
 }
 
+/**
+ * 메인넷 / 테스트넷 연결용 rpc url 반환 함수
+ * 메인넷 ID인 8217 값이 아니면 테스트넷 값이 반환됨.
+ * netID 값이 none 인 경우에는 테스트넷 값이 반환됨.
+ * @param netID
+ * @return {Caver}
+ */
 function get_caver(netID) {
     let caver
 
@@ -34,6 +38,12 @@ function get_caver(netID) {
     return caver
 }
 
+/**
+ * 지갑 인스턴스에 주소를 할당하는 함수
+ * @param instance
+ * @param account
+ * @return {Promise<*>}
+ */
 async function setAccountToInstance(instance, account) {
     instance.klay.accounts.wallet.add(account)
     return instance
@@ -139,6 +149,17 @@ async function RLPEncodingInputWithFee(senderKey, receiver, contractAddr, amount
 }
 
 /**
+ * 지연을 주기 위한 sleep 함수 작성 부분.
+ * @param ms
+ * @return {Promise<unknown>}
+ */
+const sleep = (ms) => {
+    return new Promise(resolve=>{
+        setTimeout(resolve,ms)
+    })
+}
+
+/**
  * account 정보를 확인하고 전체 명령을 제어할 수 있는 PAGE
  */
 router.get('/', function (req, res, next) {
@@ -174,12 +195,6 @@ router.post('/create_base', async function (req, res, last_function) {
     // API 반환 결과를 출력
     res.send(value)
 });
-
-const sleep = (ms) => {
-    return new Promise(resolve=>{
-        setTimeout(resolve,ms)
-    })
-}
 
 /**
  * account 생성용 API
