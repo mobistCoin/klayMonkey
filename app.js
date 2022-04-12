@@ -76,6 +76,12 @@ async function getSVC(svc_id) {
  * API 인증을 위해 SVC 의 ID와 PASSWORD 를 확인한다.
  * SVC 에게 할당된 ID와 PASSWORD 를 확인하여
  * SVC 는 API 를 사용할 수 있는 권한을 얻을 수 있다.
+ *
+ * 참조하는 값
+ * json_body = {
+ *      "svcID": "svc ID",
+ *      "netID": 8217
+ * }
  */
 app.use( async function (req, res, next) {
     /**
@@ -98,7 +104,9 @@ app.use( async function (req, res, next) {
          * @type {any}
          */
         res.locals.config = jsonData
+        // 전달받은 body 값에 있는 svcID 값을 locals 변수 값으로 채워 넣옴.
         res.locals.svcID = req.body.svcID
+        // 전달받은 body 값에 있는 type 값을 locals 변수 값으로 채워 넣옴.
         res.locals.type = req.body.type
 
         /**
