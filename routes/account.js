@@ -169,29 +169,37 @@ router.get('/', function (req, res, next) {
 
 /**
  * account 생성용 API
- * 이 함수는 private Key를 포함하여 반환함.
+ * 이 함수는 private Key를 포함하여 반환함.값
+ *
+ * 전달 값의 예제
+ * json_body = {
+ *      "svcID": "svc ID",
+ *      "netID": 8217,
+ * }
  */
 router.post('/create_base', async function (req, res, last_function) {
+    // API를 실행할 mainnet, testnet을 확인하여 결정된 네트워크용 caver 작성
     let caver = get_caver(res.locals.netID)
     // 사용자 계정 생성 API 호출
     let value = caver.klay.accounts.create()
-    /**
-     * Database 연결 정보를 가진 변수
-     * @type {any}
-     */
+
+    // Database 연결 정보를 가진 변수
     let connection = res.locals.connection
 
-    /**
-     * database용 sql 구문
-     * @type {string}
-     */
+    // database용 sql 구문
     let sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
 
+    // 서비스 ID를 설정.
+    let svcID = res.locals.svcID
+
     // sql 구문의 변수에 값을 채워 질의문구 완성
-    connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
+    connection.query(sql, [value.address, value.accountKey._key, value.privateKey, svcID])
+
     // 쿼리를 commit하여 전송 완료
     connection.commit()
-    logger.info('create address ' + report['address'] + ' in service ID: ' + res.locals.svcID)
+
+    logger.info('create address ' + report['address'] + ' in service ID: ' + svcID)
+
     // API 반환 결과를 출력
     res.send(value)
 });
@@ -199,6 +207,12 @@ router.post('/create_base', async function (req, res, last_function) {
 /**
  * account 생성용 API
  * 이 함수는 private Key를 포함하여 반환함.
+ *
+ * 전달 값의 예제
+ * json_body = {
+ *      "svcID": "svc ID",
+ *      "netID": 8217
+ * }
  */
 router.post('/create', function (req, res, last_function) {
     let caver = get_caver(res.locals.netID)
@@ -206,31 +220,32 @@ router.post('/create', function (req, res, last_function) {
 
     // 사용자 계정 생성 API 호출
     let value = caver.klay.accounts.create()
-    /**
-     * Database 연결 정보를 가진 변수
-     * @type {any}
-     */
+
+    // Database 연결 정보를 가진 변수
     let connection = res.locals.connection
 
-    /**
-     * database용 sql 구문
-     * @type {string}
-     */
+    // database용 sql 구문
     let sql = `Insert into account (address, publicKey, privateKey, svcID) values (?, ?, ?, ?)`
-    logger.debug(sql)
+
+    // 서비스 ID를 설정.
+    let svcID = res.locals.svcID
+
     // sql 구문의 변수에 값을 채워 질의문구 완성
-    connection.query(sql, [value.address, value.accountKey._key, value.privateKey, res.locals.svcID])
+    connection.query(sql, [value.address, value.accountKey._key, value.privateKey, svcID])
+
     // 쿼리를 commit하여 전송 완료
     connection.commit()
-    /**
-     * 생성된 account 의 주소 값
-     * @type {{address}}
-     */
+
+    // 생성된 account 의 주소 값
+    // private 값을 빼기 위해서 작성함.
+    // 반환 값은 주소 값만 포함항여 반환한다.
     let report = {
         "address": value.address
     }
+
     reports = reports + report
-    logger.info('create address ' + report['address'] + ' in service ID: ' + res.locals.svcID)
+
+    logger.info('create address ' + report['address'] + ' in service ID: ' + svcID)
     // 만들어진 지갑 주소 값을 반환함.
 
     res.send(reports)
@@ -628,6 +643,13 @@ router.post('/:aoa/transferFTWithFee/', async function (req, res, last_function)
 /**
  * 수수료 대납용 FT 전송 API
  * feePayer 의 주소가 정해져 있지 않기 때문에 params 로 feePayer 주소를 전달.
+ *
+ * json_body = {
+ *     "svcID": "svc ID",
+ *     "netID": 8217,
+ *     "receiver": address,
+ *     "amount": vol
+ * }
  */
 router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_function) {
     let sender = req.params.aoa
@@ -688,6 +710,7 @@ router.post('/:feepayer/transferFTWithFee/:aoa', async function (req, res, last_
  * Database 에 등록된 계정 정보를 이용하여 전송하는 명령.
  * Database 에 등록된 계정만 사용 가능하므로 계정의 database 등록 여부를 확인하여야 함.
  * request body 내용
+ *
  * json_body = {
  *     "svcID": "svc ID",
  *     "netID": 8217,
@@ -733,6 +756,9 @@ router.post('/:aoa/transferFT/:ft', async function (req, res, last_function) {
     const account = caver.klay.accounts.createWithAccountKey(sender, privateKey)
     // wallet instance 에 계정 정보를 추가.
     caver.klay.accounts.wallet.add(account)
+    logger.debug('transfer amount: ' + amount)
+    logger.debug('sender: ' + sender)
+    logger.debug('receiver: ' + receiver)
     /**
      * receiver 에게 amount 만큼의 token 량을 전송
      * @type {*}

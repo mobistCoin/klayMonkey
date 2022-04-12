@@ -134,6 +134,7 @@ router.post('/:contract/balanceOf/:eoa', async function (req, res, next) {
  * contract
  */
 router.post('/:contract/txs/:page?', async function (req, res, next) {
+    // libkct 라이브러리 사용하는 함수.
     const Info = libkcts.AccountTxs(res.locals.netID, req.params.contract, req.params.page)
     let info_json = await Info
 
