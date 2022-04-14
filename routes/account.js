@@ -255,16 +255,19 @@ router.post('/create', function (req, res, last_function) {
  * account List 내용 API
  * svc에서 해당하는 account 계정들의 list를 확인하기 위한 API.
  * PrivateKey를 포함한 정보를 반환하는 API
- * @return
+ *
+ * 전달 값의 예제
+ * json_body = {
+ *      "svcID": "svc ID",
+ *      "netID": 8217
+ * }
  */
 router.post('/getList_base', async function (req, res, last_function) {
-    /**
-     * database에서 사용자 계정 리스트를 작성함.
-     * @type {*}
-     */
+    // database에서 사용자 계정 리스트를 작성함.
     let value = await db_works.getAccounts(res.locals.connection, req.body.svcID)
 
     logger.info('>>> Get Full User List')
+
     // privateKey를 포함한 정보를 반환. DB 에서 해당 주소가 없어도 반환 값은 존재함.
     res.send(value[0])
 });
@@ -273,14 +276,14 @@ router.post('/getList_base', async function (req, res, last_function) {
  * account List 내용 API
  * svc에서 해당하는 account 계정들의 list를 확인하기 위한 API
  * PrivateKey를 제외한 정보를 반환하는 API
- * @param path - router path
- * @return None
+ *
+ * 전달 값의 예제
+ * json_body = {
+ *      "svcID": "svc ID"
+ * }
  */
 router.post('/getList', async function (req, res, last_function) {
-    /**
-     * database에서 사용자 계정 리스트를 작성함.
-     * @type {*}
-     */
+    // database에서 사용자 계정 리스트를 작성함.
     let value = await db_works.getOnluAddresses(res.locals.connection, req.body.svcID)
 
     logger.info('>>> Get Light User List')
@@ -291,6 +294,11 @@ router.post('/getList', async function (req, res, last_function) {
 
 /**
  * 등록된 계정여부를 확인하기 위한 함수.
+ *
+ * 전달 값의 예제
+ * json_body = {
+ *      "svcID": "svc ID"
+ * }
  */
 router.post('/isExist', async function (req, res, next) {
     let connection = res.locals.connection
